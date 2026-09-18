@@ -1,51 +1,91 @@
+import { useState } from 'react'
 import { useBudgetStore } from '../store/budgetStore'
+import { useTransactionStore } from '../store/transactionStore'
 import MainLayout from '../components/Layout/MainLayout'
-import BudgetTable from '../components/Budget/BudgetTable'
+import BudgetAllocationTable from '../components/Budget/BudgetAllocationTable'
 
 export default function BudgetsPage() {
-  const { getReadyToAssign } = useBudgetStore()
-  const readyToAssign = getReadyToAssign(5000) // Mock monthly income
+  const { currentMonth, getReadyToAssign } = useBudgetStore()
+  const { accounts } = useTransactionStore()
+  const [syncLoading, setSyncLoading] = useState(false)
+  const readyToAssign = getReadyToAssign(5000)
+
+  const handleSync = () => {
+    setSyncLoading(true)
+    setTimeout(() => setSyncLoading(false), 1500)
+  }
+
+  const monthName = new Date(currentMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-headline-lg font-bold text-on-surface">Budget</h1>
-          <p className="text-body-md text-on-surface-variant mt-2">Allocate your income across categories</p>
-        </div>
-
-        {/* Ready to Assign */}
-        <div className={`bg-surface-container rounded-lg p-6 border-2 ${
-          readyToAssign > 0 ? 'border-status-success' : 'border-status-error'
-        }`}>
-          <p className="text-label-md text-on-surface-variant uppercase tracking-wide">Ready to Assign</p>
-          <p className="text-headline-md font-bold text-on-surface mt-2">${readyToAssign.toFixed(2)}</p>
-          <p className="text-body-sm text-on-surface-variant mt-1">
-            {readyToAssign > 0 
-              ? `Allocate this to categories to stay on budget`
-              : `You've allocated more than available income`
-            }
-          </p>
-        </div>
-
-        {/* Budget Table */}
-        <div className="bg-surface-container rounded-lg border border-border-hairline overflow-hidden">
-          <div className="p-6 border-b border-border-hairline">
-            <h2 className="text-headline-sm font-bold text-on-surface">September 2026</h2>
-            <p className="text-body-sm text-on-surface-variant mt-1">Click any budget amount to edit</p>
+        {/* Top Controls */}
+        <div className="flex justify-between items-start">
+          <div className="flex items-center gap-4">
+            <div className="text-headline-md font-bold text-on-surface">{monthName}</div>
+            <div className="px-3 py-1 bg-surface-container rounded-full text-label-md text-status-success">
+              ✓ Zero-based budget active
+            </div>
           </div>
-          <BudgetTable />
+          <button
+            onClick={handleSync}
+            disabled={syncLoading}
+            className="px-4 py-2 text-body-sm text-primary hover:text-primary opacity-75 hover:opacity-100"
+          >
+            {syncLoading ? 'Syncing...' : '↻ Sync Now'}
+          </button>
         </div>
 
-        {/* Info */}
-        <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
-          <h3 className="text-headline-sm font-bold text-on-surface">How it works</h3>
-          <ul className="text-body-md text-on-surface-variant mt-3 space-y-2 list-disc list-inside">
-            <li>Allocate money from "Ready to Assign" to budget categories</li>
-            <li>Watch spending track against your budget in real-time</li>
-            <li>Unspent money rolls over to next month (YNAB style)</li>
-            <li>Red = over budget, Yellow = nearly there, Green = under budget</li>
-          </ul>
+        <div className="grid grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="col-span-2 space-y-6">
+            {/* Ready to Assign */}
+            <div className="bg-gradient-to-r from-primary to-primary bg-opacity-10 border-2 border-primary rounded-lg p-6">
+              <p className="text-label-md text-primary uppercase tracking-widest">Ready to Assign</p>
+              <p className="text-5xl font-bold text-primary mt-3">${readyToAssign.toFixed(2)}</p>
+              <p className="text-body-sm text-primary opacity-75 mt-2">From rollover + new income</p>
+            </div>
+
+            {/* Budget Table */}
+            <div className="bg-surface-container rounded-lg border border-border-hairline overflow-hidden">
+              <BudgetAllocationTable />
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Account Balances */}
+            <div className="bg-surface-container rounded-lg border border-border-hairline overflow-hidden">
+              <div className="px-6 py-4 border-b border-border-hairline flex justify-between items-center">
+                <h3 className="text-headline-sm font-bold text-on-surface">Account Balances</h3>
+                <button className="text-primary text-body-sm hover:underline">Sync Now</button>
+              </div>
+              <div className="divide-y divide-border-hairline">
+                {accounts.map(account => (
+                  <div key={account.id} className="px-6 py-4 hover:bg-surface-container-high transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-body-md font-medium text-on-surface">{account.name}</p>
+                        <p className="text-label-md text-on-surface-variant mt-1">
+                          {account.type === 'credit' ? '****1004' : '****8921'}
+                        </p>
+                      </div>
+                      <p className={`text-body-md font-bold ${account.balance < 0 ? 'text-status-error' : 'text-on-surface'}`}>
+                        ${account.balance.toFixed(0)}
+                      </p>
+                    </div>
+                    <p className="text-label-md text-status-success mt-2">✓</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Record Transaction */}
+            <button className="w-full py-3 bg-primary text-surface rounded font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+              + Record Transaction
+            </button>
+          </div>
         </div>
       </div>
     </MainLayout>
