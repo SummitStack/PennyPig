@@ -2,10 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  @apply dark;
-}
-
 body {
   @apply bg-surface text-on-surface;
 }
