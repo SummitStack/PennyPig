@@ -8,14 +8,10 @@ export default function AccountCard({ account }) {
   const removeAccount = useAccountStore(state => state.removeAccount)
   const syncAccount = useAccountStore(state => state.syncAccount)
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-
   const handleSync = async () => {
     setSyncing(true)
     try {
-      // In production, fetch the access_token from your backend
-      // For now, this is a placeholder that syncs via backend
-      const response = await fetch(`${API_URL}/api/plaid/transactions`, {
+      const response = await fetch(`/api/plaid/transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

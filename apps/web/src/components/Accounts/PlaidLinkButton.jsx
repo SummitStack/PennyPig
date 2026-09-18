@@ -8,8 +8,6 @@ export default function PlaidLinkButton() {
   const addAccount = useAccountStore(state => state.addAccount)
   const [linking, setLinking] = useState(false)
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-
   const config = {
     clientName: 'PennyPig',
     user: { client_user_id: user?.id || 'demo-user' },
@@ -24,7 +22,7 @@ export default function PlaidLinkButton() {
     onSuccess: async (public_token) => {
       setLinking(true)
       try {
-        const exchangeResponse = await fetch(`${API_URL}/api/plaid/exchange-token`, {
+        const exchangeResponse = await fetch(`/api/plaid/exchange-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -36,7 +34,7 @@ export default function PlaidLinkButton() {
         const exchangeData = await exchangeResponse.json()
         if (!exchangeResponse.ok) throw new Error(exchangeData.error)
 
-        const accountsResponse = await fetch(`${API_URL}/api/plaid/accounts`, {
+        const accountsResponse = await fetch(`/api/plaid/accounts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ access_token: exchangeData.access_token })
