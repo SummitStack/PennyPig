@@ -1,7 +1,7 @@
 'use client'
-import App from '../App'
+import dynamic from 'next/dynamic'
 
-export const dynamic = 'force-dynamic'
+const App = dynamic(() => import('../App'), { ssr: false })
 
 export default function Page() {
   return <App />
