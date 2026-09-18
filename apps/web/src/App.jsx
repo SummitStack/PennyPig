@@ -3,13 +3,13 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import Dashboard from './pages/Dashboard'
-import Transactions from './pages/Transactions'
-import Budgets from './pages/Budgets'
-import Accounts from './pages/Accounts'
-import Settings from './pages/Settings'
-import Login from './pages/Login'
-import Signup from './pages/Signup'
+import Dashboard from './routes/Dashboard'
+import Transactions from './routes/Transactions'
+import Budgets from './routes/Budgets'
+import Accounts from './routes/Accounts'
+import Settings from './routes/Settings'
+import Login from './routes/Login'
+import Signup from './routes/Signup'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuthStore()
