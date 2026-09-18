@@ -3,10 +3,17 @@
   "version": "1.0.0",
   "private": true,
   "description": "Smart budgeting made simple",
-  "workspaces": ["apps/web"],
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
     "dev": "cd apps/web && npm run dev",
     "build": "cd apps/web && npm run build",
     "preview": "cd apps/web && npm run preview"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "node-fetch": "^3.3.2"
   }
 }
