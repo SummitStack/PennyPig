@@ -1,16 +1,41 @@
 import { useState } from 'react'
+import { useAuthStore } from '../../store/authStore'
 import { useAccountStore } from '../../store/accountStore'
 
 export default function AccountCard({ account }) {
+  const user = useAuthStore(state => state.user)
   const [syncing, setSyncing] = useState(false)
   const removeAccount = useAccountStore(state => state.removeAccount)
   const syncAccount = useAccountStore(state => state.syncAccount)
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
   const handleSync = async () => {
     setSyncing(true)
-    // TODO: Call backend API to sync transactions
-    syncAccount(account.id)
-    setTimeout(() => setSyncing(false), 1500)
+    try {
+      // In production, fetch the access_token from your backend
+      // For now, this is a placeholder that syncs via backend
+      const response = await fetch(`${API_URL}/api/plaid/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: 'demo-token', // Replace with real access token from backend
+          user_id: user?.id || 'demo-user'
+        })
+      })
+
+      if (response.ok) {
+        syncAccount(account.id)
+        alert(`✓ ${account.name} synced successfully`)
+      } else {
+        alert('Sync failed')
+      }
+    } catch (error) {
+      console.error('Sync error:', error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      setSyncing(false)
+    }
   }
 
   const handleRemove = () => {
