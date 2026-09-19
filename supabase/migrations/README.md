@@ -11,3 +11,7 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - `categories.parent_id` + `categories.sort_order`
 - Hierarchical default categories with emoji icons
 - Updated `ensure_user_defaults()` seeds groups/subcategories and re-homes legacy flat rows
+
+## 20260919_transactions_ledger_payee_rules.sql
+- `transactions.payee`, `memo`, `cleared`
+- `payee_rename_rules` table for remembering cleaned payee names across imports
