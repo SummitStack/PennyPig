@@ -62,7 +62,7 @@ function MoneyCell({
         setEditingCell(categoryId)
         setEditValue(String(budgeted))
       }}
-      className="inline-flex cursor-text items-center gap-1 rounded border border-transparent px-2 py-1 text-body-sm font-medium text-on-surface hover:border-border-hairline hover:bg-surface-container"
+      className="inline-flex cursor-text items-center rounded border border-transparent px-1.5 py-0.5 text-body-sm font-medium text-on-surface hover:border-border-hairline hover:bg-surface-container"
     >
       <span>${budgeted.toFixed(0)}</span>
     </button>
@@ -71,30 +71,30 @@ function MoneyCell({
 
 function ReorderControls({ canUp, canDown, onUp, onDown }) {
   return (
-    <div className="flex items-center text-on-surface-variant opacity-50 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-      <span className="flex h-7 w-5 items-center justify-center" aria-hidden title="Reorder">
-        <Icon name="drag_indicator" className="text-[18px]" />
+    <div className="flex items-center text-on-surface-variant opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      <span className="flex h-5 w-4 items-center justify-center" aria-hidden title="Reorder">
+        <Icon name="drag_indicator" className="text-[14px]" />
       </span>
-      <div className="flex flex-col -space-y-0.5" role="group" aria-label="Reorder category">
+      <div className="flex flex-col -space-y-1" role="group" aria-label="Reorder category">
         <button
           type="button"
           disabled={!canUp}
           onClick={onUp}
-          className="flex h-3.5 w-5 items-center justify-center rounded-sm hover:bg-surface-container hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-3 w-4 items-center justify-center rounded-sm hover:bg-surface-container hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-30"
           aria-label="Move up"
           title="Move up"
         >
-          <Icon name="arrow_drop_up" className="text-[18px] leading-none" />
+          <Icon name="arrow_drop_up" className="text-[16px] leading-none" />
         </button>
         <button
           type="button"
           disabled={!canDown}
           onClick={onDown}
-          className="flex h-3.5 w-5 items-center justify-center rounded-sm hover:bg-surface-container hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-3 w-4 items-center justify-center rounded-sm hover:bg-surface-container hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-30"
           aria-label="Move down"
           title="Move down"
         >
-          <Icon name="arrow_drop_down" className="text-[18px] leading-none" />
+          <Icon name="arrow_drop_down" className="text-[16px] leading-none" />
         </button>
       </div>
     </div>
@@ -122,12 +122,12 @@ function CategoryRow({
   onMoveDown,
 }) {
   const available = budgeted - activity
-  const pad = depth === 0 ? '' : 'pl-6'
+  const pad = depth === 0 ? '' : 'pl-5'
 
   return (
-    <div className="group py-space-md">
-      <div className="grid grid-cols-12 items-center gap-y-1">
-        <div className={`col-span-5 flex min-w-0 items-center gap-1 ${pad}`}>
+    <div className={`group py-1 ${isGroup ? 'bg-surface-container/40' : ''}`}>
+      <div className="grid grid-cols-12 items-center">
+        <div className={`col-span-5 flex min-w-0 items-center gap-0.5 ${pad}`}>
           <ReorderControls
             canUp={canUp}
             canDown={canDown}
@@ -138,22 +138,22 @@ function CategoryRow({
             <button
               type="button"
               onClick={() => onToggleExpand(category.id)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="flex h-6 w-6 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
               aria-label={expanded ? 'Collapse group' : 'Expand group'}
             >
               <Icon
                 name={expanded ? 'expand_more' : 'chevron_right'}
-                className="text-[20px]"
+                className="text-[18px]"
               />
             </button>
           ) : (
-            <span className="w-7" />
+            <span className="w-6" />
           )}
-          <span className="text-lg leading-none" aria-hidden>
+          <span className="text-sm leading-none" aria-hidden>
             {category.emoji || '📁'}
           </span>
           <span
-            className={`min-w-0 truncate ${
+            className={`min-w-0 truncate text-body-sm ${
               isGroup
                 ? 'font-bold uppercase tracking-wide text-on-surface'
                 : 'font-medium text-on-surface'
@@ -161,26 +161,26 @@ function CategoryRow({
           >
             {category.name}
           </span>
-          <div className="ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <div className="ml-auto flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
             {isGroup && (
               <button
                 type="button"
                 onClick={() => onAddChild(category.id)}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                className="flex h-6 w-6 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                 title="Add subcategory"
                 aria-label={`Add subcategory under ${category.name}`}
               >
-                <Icon name="add" className="text-[16px]" />
+                <Icon name="add" className="text-[14px]" />
               </button>
             )}
             <button
               type="button"
               onClick={() => onEdit(category)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+              className="flex h-6 w-6 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
               title="Edit category"
               aria-label={`Edit ${category.name}`}
             >
-              <Icon name="edit" className="text-[16px]" />
+              <Icon name="edit" className="text-[14px]" />
             </button>
           </div>
         </div>
@@ -196,11 +196,11 @@ function CategoryRow({
             onSave={onSaveBudget}
           />
         </div>
-        <div className="col-span-2 text-center text-on-surface-variant">
+        <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
           ${activity.toFixed(0)}
         </div>
         <div
-          className={`col-span-3 flex items-center justify-end gap-space-xs text-right font-medium ${statusText(
+          className={`col-span-3 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
             budgeted,
             activity
           )}`}
@@ -209,7 +209,7 @@ function CategoryRow({
             {available < 0 ? '-' : ''}${Math.abs(available).toFixed(0)}
           </span>
           <span
-            className={`h-2 w-2 rounded-full ${statusDot(budgeted, activity)} ${
+            className={`h-1.5 w-1.5 rounded-full ${statusDot(budgeted, activity)} ${
               available < 0 ? 'animate-pulse' : ''
             }`}
           />
@@ -326,41 +326,40 @@ export default function BudgetAllocationTable() {
   const totalAvailable = totalBudgeted - totalActivity
 
   return (
-    <div className="flex flex-col rounded-xl border border-border-hairline bg-surface-base p-space-lg shadow-sm">
-      <div className="mb-space-md flex flex-wrap items-center justify-between gap-space-sm">
-        <p className="text-body-sm text-on-surface-variant">
-          Edit categories here — pencil to rename or pick an emoji, hamburger to reorder
-          (subcategories can move between groups).
+    <div className="flex flex-col rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-label-md text-on-surface-variant">
+          Pencil to edit · arrows to reorder (including between groups)
         </p>
         <button
           type="button"
           onClick={() =>
             setPanel({ mode: 'add', parentId: null, category: { emoji: '📁', type: 'expense' } })
           }
-          className="inline-flex items-center gap-1 rounded-lg bg-primary px-space-md py-space-sm text-body-sm font-semibold text-on-primary"
+          className="inline-flex items-center gap-1 rounded-lg bg-primary px-space-sm py-1 text-label-md font-semibold text-on-primary"
         >
-          <Icon name="add" className="text-[16px]" />
+          <Icon name="add" className="text-[14px]" />
           Add category
         </button>
       </div>
 
       {flash && (
-        <p className="mb-space-sm text-body-sm text-sage-accent">{flash}</p>
+        <p className="mb-2 text-label-md text-sage-accent">{flash}</p>
       )}
 
       {panel && (
-        <div className="mb-space-md space-y-space-sm">
+        <div className="mb-2 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-headline-sm font-bold text-on-surface">
+            <h3 className="text-body-md font-bold text-on-surface">
               {panel.mode === 'add' ? 'Add category' : `Edit ${panel.category?.name}`}
             </h3>
             {panel.mode === 'edit' && (
               <button
                 type="button"
                 onClick={handleDeleteFromEdit}
-                className="inline-flex items-center gap-1 rounded-lg px-space-sm py-1 text-body-sm text-status-error hover:bg-status-error/10"
+                className="inline-flex items-center gap-1 rounded-lg px-space-sm py-0.5 text-label-md text-status-error hover:bg-status-error/10"
               >
-                <Icon name="delete" className="text-[16px]" />
+                <Icon name="delete" className="text-[14px]" />
                 Delete
               </button>
             )}
@@ -385,16 +384,16 @@ export default function BudgetAllocationTable() {
         </div>
       )}
 
-      <div className="grid grid-cols-12 border-b border-border-hairline pb-space-md text-label-md font-semibold text-on-surface-variant">
+      <div className="grid grid-cols-12 border-b border-border-hairline pb-1.5 text-label-sm font-semibold tracking-wide text-on-surface-variant">
         <div className="col-span-5">CATEGORY</div>
         <div className="col-span-2 text-center">BUDGETED</div>
         <div className="col-span-2 text-center">ACTIVITY</div>
         <div className="col-span-3 text-right">AVAILABLE</div>
       </div>
 
-      <div className="flex flex-col divide-y divide-border-hairline">
+      <div className="flex flex-col divide-y divide-border-hairline/60">
         {tree.length === 0 && (
-          <p className="py-space-lg text-body-md text-on-surface-variant">
+          <p className="py-space-md text-body-sm text-on-surface-variant">
             No categories yet. Add a group above, or sign in to seed defaults.
           </p>
         )}
@@ -464,13 +463,13 @@ export default function BudgetAllocationTable() {
         })}
       </div>
 
-      <div className="mt-space-lg grid grid-cols-12 items-center border-t border-border-hairline pt-space-md font-bold text-on-surface">
-        <div className="col-span-5 text-headline-sm">TOTALS</div>
-        <div className="col-span-2 text-center text-headline-sm">${totalBudgeted.toFixed(0)}</div>
-        <div className="col-span-2 text-center text-headline-sm text-on-surface-variant">
+      <div className="mt-2 grid grid-cols-12 items-center border-t border-border-hairline pt-2 font-bold text-on-surface">
+        <div className="col-span-5 text-body-md">TOTALS</div>
+        <div className="col-span-2 text-center text-body-md">${totalBudgeted.toFixed(0)}</div>
+        <div className="col-span-2 text-center text-body-md text-on-surface-variant">
           ${totalActivity.toFixed(0)}
         </div>
-        <div className="col-span-3 text-right text-headline-sm text-sage-accent">
+        <div className="col-span-3 text-right text-body-md text-sage-accent">
           ${totalAvailable.toFixed(0)}
         </div>
       </div>

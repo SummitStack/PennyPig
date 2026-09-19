@@ -65,58 +65,58 @@ export default function BudgetsPage() {
 
   return (
     <MainLayout>
-      <div className="mb-space-xl flex flex-col justify-between gap-space-lg md:flex-row md:items-center">
-        <div className="flex items-center gap-space-md">
-          <div className="flex items-center rounded-lg border border-border-hairline bg-surface-container-high p-1">
+      <div className="mb-space-md flex flex-col justify-between gap-space-sm md:flex-row md:items-center">
+        <div className="flex items-center gap-space-sm">
+          <div className="flex items-center rounded-lg border border-border-hairline bg-surface-container-high p-0.5">
             <button
               type="button"
               onClick={() => changeMonth(-1)}
-              className="rounded p-2 text-on-surface-variant transition-colors hover:bg-surface-base hover:text-on-surface"
+              className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-base hover:text-on-surface"
               aria-label="Previous month"
             >
-              <Icon name="chevron_left" className="text-[20px]" />
+              <Icon name="chevron_left" className="text-[18px]" />
             </button>
-            <span className="px-space-md font-headline-md font-bold tracking-tight text-on-surface">
+            <span className="px-space-sm font-headline-sm font-bold tracking-tight text-on-surface">
               {monthName}
             </span>
             <button
               type="button"
               onClick={() => changeMonth(1)}
-              className="rounded p-2 text-on-surface-variant transition-colors hover:bg-surface-base hover:text-on-surface"
+              className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-base hover:text-on-surface"
               aria-label="Next month"
             >
-              <Icon name="chevron_right" className="text-[20px]" />
+              <Icon name="chevron_right" className="text-[18px]" />
             </button>
           </div>
-          <div className="hidden items-center gap-space-xs rounded-lg border border-border-hairline bg-surface-container-high/50 px-3 py-1.5 text-label-md text-on-surface-variant sm:flex">
-            <Icon name="verified" className="text-[16px] text-sage-accent" />
+          <div className="hidden items-center gap-space-xs rounded-lg border border-border-hairline bg-surface-container-high/50 px-2 py-1 text-label-sm text-on-surface-variant sm:flex">
+            <Icon name="verified" className="text-[14px] text-sage-accent" />
             <span>Budget vs activity</span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-space-xl rounded-xl border border-sage-accent/30 bg-sage-accent/10 p-space-md md:justify-end">
+        <div className="flex items-center justify-between gap-space-md rounded-lg border border-sage-accent/30 bg-sage-accent/10 px-space-md py-2 md:justify-end">
           <div>
             <div className="text-label-sm font-bold tracking-wider text-sage-accent">
               READY TO ASSIGN
             </div>
-            <div className="text-body-sm text-on-surface-variant">
+            <div className="text-label-sm text-on-surface-variant">
               Income this month minus budgeted
             </div>
           </div>
-          <div className="text-headline-lg font-bold text-sage-accent">
+          <div className="text-headline-md font-bold text-sage-accent">
             ${readyToAssign.toFixed(2)}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-space-xl lg:grid-cols-12">
+      <div className="grid grid-cols-1 items-start gap-space-md lg:grid-cols-12">
         <div className="lg:col-span-8">
           <BudgetAllocationTable />
         </div>
 
-        <div className="flex flex-col gap-space-lg lg:col-span-4">
-          <div className="flex flex-col gap-space-md rounded-xl border border-border-hairline bg-surface-base p-space-lg shadow-sm">
-            <div className="flex items-center justify-between border-b border-border-hairline pb-space-sm">
+        <div className="flex flex-col gap-space-sm lg:col-span-4">
+          <div className="flex flex-col gap-space-sm rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
+            <div className="flex items-center justify-between border-b border-border-hairline pb-1.5">
               <span className="font-headline-sm font-bold text-on-surface">Account Balances</span>
               <button
                 type="button"
@@ -129,21 +129,21 @@ export default function BudgetsPage() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-space-md">
+            <div className="flex flex-col gap-1.5">
               {accounts.length === 0 && (
                 <p className="text-body-sm text-on-surface-variant">No linked accounts yet</p>
               )}
               {accounts.map((account) => (
-                <div key={account.id} className="flex items-center justify-between py-1">
+                <div key={account.id} className="flex items-center justify-between py-0.5">
                   <div className="flex items-center gap-space-sm">
                     <Icon
                       name={accountIcon(account.type)}
-                      className={`text-[20px] ${
+                      className={`text-[18px] ${
                         account.type === 'credit' ? 'text-error' : 'text-secondary'
                       }`}
                     />
                     <div>
-                      <div className="font-medium text-on-surface">{account.name}</div>
+                      <div className="text-body-sm font-medium text-on-surface">{account.name}</div>
                       <div className="text-label-sm text-on-surface-variant">
                         {account.institution} {account.accountNumber}
                       </div>
@@ -151,7 +151,7 @@ export default function BudgetsPage() {
                   </div>
                   <div className="text-right">
                     <div
-                      className={`font-semibold ${
+                      className={`text-body-sm font-semibold ${
                         account.balance < 0 ? 'text-error' : 'text-on-surface'
                       }`}
                     >
@@ -161,7 +161,7 @@ export default function BudgetsPage() {
                     </div>
                     <Icon
                       name={account.balance < 0 ? 'error' : 'check'}
-                      className={`text-[16px] ${
+                      className={`text-[14px] ${
                         account.balance < 0 ? 'text-status-error' : 'text-status-success'
                       }`}
                     />
@@ -174,9 +174,9 @@ export default function BudgetsPage() {
           <button
             type="button"
             onClick={() => navigate('/transactions')}
-            className="flex w-full items-center justify-center gap-space-sm rounded-xl bg-primary px-space-lg py-4 font-headline-sm font-semibold text-on-primary shadow-sm transition-opacity hover:opacity-90"
+            className="flex w-full items-center justify-center gap-space-sm rounded-xl bg-primary px-space-md py-2.5 font-headline-sm font-semibold text-on-primary shadow-sm transition-opacity hover:opacity-90"
           >
-            <Icon name="add_circle" className="text-[20px]" />
+            <Icon name="add_circle" className="text-[18px]" />
             <span>Record Transaction</span>
           </button>
         </div>
