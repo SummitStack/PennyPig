@@ -1,10 +1,47 @@
 import { create } from 'zustand'
-import { mockTransactions, mockCategories, mockAccounts } from '../lib/mockData'
+import { supabase } from '../lib/supabase'
+
+function mapTransaction(row, accountsById, categoriesById) {
+  const account = accountsById[row.account_id]
+  const category = row.category_id ? categoriesById[row.category_id] : null
+  return {
+    id: row.id,
+    date: row.date ? new Date(row.date + 'T00:00:00') : new Date(),
+    merchant: row.merchant || 'Unknown',
+    amount: Number(row.amount) || 0,
+    category: category?.name || 'Uncategorized',
+    categoryId: row.category_id,
+    accountId: row.account_id,
+    account: account?.name || 'Account',
+    status: row.status || 'posted',
+  }
+}
+
+function mapCategory(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    color: row.color,
+    type: row.type,
+  }
+}
+
+function mapAccount(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.account_type,
+    balance: Number(row.balance) || 0,
+  }
+}
 
 export const useTransactionStore = create((set, get) => ({
-  transactions: mockTransactions,
-  categories: mockCategories,
-  accounts: mockAccounts,
+  transactions: [],
+  categories: [],
+  accounts: [],
+  loading: false,
+  error: null,
+  hydrated: false,
   filter: {
     search: '',
     category: null,
@@ -19,21 +56,72 @@ export const useTransactionStore = create((set, get) => ({
       filter: { ...state.filter, ...filter },
     })),
 
-  categorizeTransaction: (transactionId, categoryId) =>
-    set((state) => {
-      const category = state.categories.find((c) => c.id === categoryId)
-      return {
-        transactions: state.transactions.map((t) =>
-          t.id === transactionId
-            ? {
-                ...t,
-                categoryId,
-                category: category?.name || t.category,
-              }
-            : t
-        ),
-      }
-    }),
+  loadData: async () => {
+    if (!supabase) {
+      set({ transactions: [], categories: [], accounts: [], hydrated: true })
+      return
+    }
+
+    set({ loading: true, error: null })
+    try {
+      const [accountsRes, categoriesRes, transactionsRes] = await Promise.all([
+        supabase.from('accounts').select('*').order('created_at', { ascending: true }),
+        supabase.from('categories').select('*').order('name', { ascending: true }),
+        supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false })
+          .limit(500),
+      ])
+
+      if (accountsRes.error) throw accountsRes.error
+      if (categoriesRes.error) throw categoriesRes.error
+      if (transactionsRes.error) throw transactionsRes.error
+
+      const accounts = (accountsRes.data || []).map(mapAccount)
+      const categories = (categoriesRes.data || []).map(mapCategory)
+      const accountsById = Object.fromEntries(accounts.map((a) => [a.id, a]))
+      const categoriesById = Object.fromEntries(categories.map((c) => [c.id, c]))
+      const transactions = (transactionsRes.data || []).map((row) =>
+        mapTransaction(row, accountsById, categoriesById)
+      )
+
+      set({
+        accounts,
+        categories,
+        transactions,
+        loading: false,
+        hydrated: true,
+      })
+    } catch (err) {
+      set({ error: err.message, loading: false, hydrated: true })
+    }
+  },
+
+  categorizeTransaction: async (transactionId, categoryId) => {
+    const category = get().categories.find((c) => c.id === categoryId)
+    set((state) => ({
+      transactions: state.transactions.map((t) =>
+        t.id === transactionId
+          ? {
+              ...t,
+              categoryId,
+              category: category?.name || t.category,
+            }
+          : t
+      ),
+    }))
+
+    if (!supabase) return { success: true }
+
+    const { error } = await supabase
+      .from('transactions')
+      .update({ category_id: categoryId, updated_at: new Date().toISOString() })
+      .eq('id', transactionId)
+
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  },
 
   getFilteredTransactions: () => {
     const state = get()

@@ -2,7 +2,14 @@ import { useState } from 'react'
 import { useBudgetStore } from '../../store/budgetStore'
 
 export default function BudgetAllocationTable() {
-  const { budgets, spending, currentMonth, updateBudget, getTotalBudgeted, getTotalActivity } = useBudgetStore()
+  const currentMonth = useBudgetStore((state) => state.currentMonth)
+  const budgets = useBudgetStore((state) => state.budgets)
+  const updateBudget = useBudgetStore((state) => state.updateBudget)
+  const getSpending = useBudgetStore((state) => state.getSpending)
+  const getTotalBudgeted = useBudgetStore((state) => state.getTotalBudgeted)
+  const getTotalActivity = useBudgetStore((state) => state.getTotalActivity)
+
+  const spending = getSpending(currentMonth)
   const categories = Object.keys(budgets[currentMonth] || {})
   const [editingCell, setEditingCell] = useState(null)
   const [editValue, setEditValue] = useState('')
@@ -12,9 +19,9 @@ export default function BudgetAllocationTable() {
     setEditValue(currentValue.toString())
   }
 
-  const handleSave = (categoryName) => {
+  const handleSave = async (categoryName) => {
     const amount = parseFloat(editValue) || 0
-    updateBudget(categoryName, null, amount)
+    await updateBudget(categoryName, null, amount)
     setEditingCell(null)
   }
 
@@ -34,22 +41,35 @@ export default function BudgetAllocationTable() {
       <table className="w-full">
         <thead className="bg-surface-container border-b border-border-hairline sticky top-0">
           <tr>
-            <th className="px-6 py-4 text-left text-label-md text-on-surface-variant uppercase tracking-wider">Category</th>
-            <th className="px-6 py-4 text-right text-label-md text-on-surface-variant uppercase tracking-wider">Budgeted</th>
-            <th className="px-6 py-4 text-right text-label-md text-on-surface-variant uppercase tracking-wider">Activity</th>
-            <th className="px-6 py-4 text-right text-label-md text-on-surface-variant uppercase tracking-wider">Available</th>
+            <th className="px-6 py-4 text-left text-label-md text-on-surface-variant uppercase tracking-wider">
+              Category
+            </th>
+            <th className="px-6 py-4 text-right text-label-md text-on-surface-variant uppercase tracking-wider">
+              Budgeted
+            </th>
+            <th className="px-6 py-4 text-right text-label-md text-on-surface-variant uppercase tracking-wider">
+              Activity
+            </th>
+            <th className="px-6 py-4 text-right text-label-md text-on-surface-variant uppercase tracking-wider">
+              Available
+            </th>
           </tr>
         </thead>
         <tbody>
           {categories.map((categoryName) => {
             const budgeted = budgets[currentMonth]?.[categoryName] || 0
-            const activity = spending[currentMonth]?.[categoryName] || 0
+            const activity = spending[categoryName] || 0
             const available = budgeted - activity
 
             return (
-              <tr key={categoryName} className="border-b border-border-hairline hover:bg-surface-container-high transition-colors group">
+              <tr
+                key={categoryName}
+                className="border-b border-border-hairline hover:bg-surface-container-high transition-colors group"
+              >
                 <td className="px-6 py-4">
-                  <span className="text-body-md font-semibold text-on-surface">{categoryName}</span>
+                  <span className="text-body-md font-semibold text-on-surface">
+                    {categoryName}
+                  </span>
                 </td>
                 <td
                   className="px-6 py-4 text-right cursor-pointer"
@@ -74,7 +94,12 @@ export default function BudgetAllocationTable() {
                 <td className="px-6 py-4 text-right text-body-md font-medium text-on-surface">
                   ${activity.toFixed(2)}
                 </td>
-                <td className={`px-6 py-4 text-right text-body-md font-medium ${getStatusColor(budgeted, activity)}`}>
+                <td
+                  className={`px-6 py-4 text-right text-body-md font-medium ${getStatusColor(
+                    budgeted,
+                    activity
+                  )}`}
+                >
                   ${available.toFixed(2)}
                 </td>
               </tr>
@@ -83,12 +108,13 @@ export default function BudgetAllocationTable() {
         </tbody>
       </table>
 
-      {/* Totals */}
       <div className="bg-surface-container-high border-t-2 border-border-hairline px-6 py-4 grid grid-cols-4 gap-0 font-bold text-on-surface">
         <div>TOTALS</div>
         <div className="text-right">${totalBudgeted.toFixed(2)}</div>
         <div className="text-right">${totalActivity.toFixed(2)}</div>
-        <div className="text-right text-status-success">${(totalBudgeted - totalActivity).toFixed(2)}</div>
+        <div className="text-right text-status-success">
+          ${(totalBudgeted - totalActivity).toFixed(2)}
+        </div>
       </div>
     </div>
   )

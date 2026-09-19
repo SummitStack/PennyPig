@@ -1,58 +1,74 @@
 import { create } from 'zustand'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+
+function mapAccount(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.account_type,
+    plaidAccountId: row.plaid_account_id,
+    plaidItemId: row.plaid_item_id,
+    accountNumber: row.mask ? `****${row.mask}` : '••••',
+    institution: row.institution_name || 'Linked account',
+    balance: Number(row.balance) || 0,
+    lastSynced: row.last_synced ? new Date(row.last_synced) : null,
+    status: 'active',
+  }
+}
 
 export const useAccountStore = create((set, get) => ({
-  linkedAccounts: [
-    {
-      id: 'acc_1',
-      name: 'Chase Checking',
-      type: 'checking',
-      plaidAccountId: 'BxBXxkx9PRwxJ516DkJTSL3XA',
-      accountNumber: '****8921',
-      routingNumber: '021000021',
-      institution: 'Chase Bank',
-      balance: 8749.00,
-      lastSynced: new Date(Date.now() - 3600000),
-      status: 'active'
-    },
-    {
-      id: 'acc_2',
-      name: 'American Express',
-      type: 'credit',
-      plaidAccountId: 'BxBXxkx9PRwxJ516DkJTSL3XB',
-      accountNumber: '****1004',
-      institution: 'American Express',
-      balance: -2145.00,
-      lastSynced: new Date(Date.now() - 3600000),
-      status: 'active'
+  linkedAccounts: [],
+  loading: false,
+  error: null,
+  hydrated: false,
+
+  loadAccounts: async () => {
+    if (!supabase) {
+      set({ linkedAccounts: [], hydrated: true })
+      return
     }
-  ],
 
-  addAccount: (accountData) => set((state) => ({
-    linkedAccounts: [...state.linkedAccounts, {
-      ...accountData,
-      id: `acc_${Date.now()}`,
-      status: 'active',
-      lastSynced: new Date()
-    }]
-  })),
+    set({ loading: true, error: null })
+    try {
+      const { data, error } = await supabase
+        .from('accounts')
+        .select('*')
+        .order('created_at', { ascending: true })
 
-  removeAccount: (accountId) => set((state) => ({
-    linkedAccounts: state.linkedAccounts.filter(acc => acc.id !== accountId)
-  })),
+      if (error) throw error
+      set({
+        linkedAccounts: (data || []).map(mapAccount),
+        loading: false,
+        hydrated: true,
+      })
+    } catch (err) {
+      set({ error: err.message, loading: false, hydrated: true })
+    }
+  },
 
-  syncAccount: (accountId) => set((state) => ({
-    linkedAccounts: state.linkedAccounts.map(acc =>
-      acc.id === accountId
-        ? { ...acc, lastSynced: new Date() }
-        : acc
-    )
-  })),
+  removeAccount: async (accountId) => {
+    if (!supabase) {
+      set((state) => ({
+        linkedAccounts: state.linkedAccounts.filter((acc) => acc.id !== accountId),
+      }))
+      return { success: true }
+    }
 
-  updateAccountBalance: (accountId, balance) => set((state) => ({
-    linkedAccounts: state.linkedAccounts.map(acc =>
-      acc.id === accountId
-        ? { ...acc, balance }
-        : acc
-    )
-  }))
+    const { error } = await supabase.from('accounts').delete().eq('id', accountId)
+    if (error) return { success: false, error: error.message }
+
+    set((state) => ({
+      linkedAccounts: state.linkedAccounts.filter((acc) => acc.id !== accountId),
+    }))
+    return { success: true }
+  },
+
+  syncAccount: async (accountId) => {
+    // Timestamp bump after successful API sync
+    set((state) => ({
+      linkedAccounts: state.linkedAccounts.map((acc) =>
+        acc.id === accountId ? { ...acc, lastSynced: new Date() } : acc
+      ),
+    }))
+  },
 }))

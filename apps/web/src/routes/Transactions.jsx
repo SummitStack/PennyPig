@@ -1,18 +1,39 @@
 import { useState } from 'react'
 import { useTransactionStore } from '../store/transactionStore'
+import { useAccountStore } from '../store/accountStore'
+import { useBudgetStore } from '../store/budgetStore'
 import MainLayout from '../components/Layout/MainLayout'
 import TransactionList from '../components/Transactions/TransactionList'
+import { authFetch } from '../lib/authFetch'
 
 export default function TransactionsPage() {
   const filter = useTransactionStore((state) => state.filter)
   const setFilter = useTransactionStore((state) => state.setFilter)
   const accounts = useTransactionStore((state) => state.accounts)
   const categories = useTransactionStore((state) => state.categories)
+  const loadData = useTransactionStore((state) => state.loadData)
+  const linkedAccounts = useAccountStore((state) => state.linkedAccounts)
+  const loadAccounts = useAccountStore((state) => state.loadAccounts)
+  const loadBudgets = useBudgetStore((state) => state.loadBudgets)
   const [syncLoading, setSyncLoading] = useState(false)
 
   const handleSync = async () => {
     setSyncLoading(true)
-    setTimeout(() => setSyncLoading(false), 1500)
+    try {
+      for (const account of linkedAccounts) {
+        const response = await authFetch('/api/plaid/sync', {
+          method: 'POST',
+          body: JSON.stringify({ account_id: account.id }),
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Sync failed')
+      }
+      await Promise.all([loadAccounts(), loadData(), loadBudgets()])
+    } catch (err) {
+      alert(err.message || 'Sync failed')
+    } finally {
+      setSyncLoading(false)
+    }
   }
 
   return (
@@ -70,10 +91,14 @@ export default function TransactionsPage() {
           </div>
           <button
             onClick={handleSync}
-            disabled={syncLoading}
+            disabled={syncLoading || linkedAccounts.length === 0}
             className="w-full py-2 bg-primary text-surface rounded font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
-            {syncLoading ? 'Syncing...' : 'Sync Accounts (Mock)'}
+            {syncLoading
+              ? 'Syncing...'
+              : linkedAccounts.length === 0
+                ? 'Connect an account to sync'
+                : 'Sync Accounts'}
           </button>
         </div>
 

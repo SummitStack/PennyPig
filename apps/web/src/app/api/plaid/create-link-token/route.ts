@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '../../../../lib/apiAuth'
 import { plaidRequest } from '../../../../lib/plaid'
+import { requireAuthedClient } from '../../../../lib/supabaseServer'
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, error } = await requireUser(request)
-    if (error) return error
+    const auth = await requireAuthedClient(request)
+    if (auth.error) return auth.error
 
     const { response, data } = await plaidRequest('/link/token/create', {
       client_name: 'PennyPig',
       language: 'en',
       country_codes: ['US'],
-      user: { client_user_id: user.id },
+      user: { client_user_id: auth.user.id },
       products: ['transactions'],
     })
 

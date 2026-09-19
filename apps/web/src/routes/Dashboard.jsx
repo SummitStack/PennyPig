@@ -1,13 +1,18 @@
 import { useNavigate } from 'react-router-dom'
 import { useBudgetStore } from '../store/budgetStore'
-import { useTransactionStore } from '../store/transactionStore'
+import { useAccountStore } from '../store/accountStore'
 import MainLayout from '../components/Layout/MainLayout'
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const accounts = useTransactionStore((state) => state.accounts)
-  const { budgets, currentMonth, getCategoryStatus, getTotalSpent, getTotalBudgeted } =
-    useBudgetStore()
+  const accounts = useAccountStore((state) => state.linkedAccounts)
+  const {
+    budgets,
+    currentMonth,
+    getCategoryStatus,
+    getTotalSpent,
+    getTotalBudgeted,
+  } = useBudgetStore()
   const categories = Object.keys(budgets[currentMonth] || {})
 
   const netWorth = accounts.reduce((sum, acc) => {
@@ -48,20 +53,28 @@ export default function Dashboard() {
 
         <div>
           <h2 className="text-headline-sm font-bold text-on-surface mb-4">Account Balances</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {accounts.map((account) => (
-              <div
-                key={account.id}
-                className="bg-surface-container rounded-lg p-6 border border-border-hairline hover:border-primary transition-colors"
-              >
-                <p className="text-label-md text-on-surface-variant">{account.name}</p>
-                <p className="text-headline-md font-bold text-on-surface mt-2">
-                  ${Number(account.balance).toFixed(2)}
-                </p>
-                <p className="text-body-sm text-on-surface-variant mt-1 capitalize">{account.type}</p>
-              </div>
-            ))}
-          </div>
+          {accounts.length === 0 ? (
+            <p className="text-body-md text-on-surface-variant">
+              No accounts yet. Connect one from the Accounts page.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {accounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="bg-surface-container rounded-lg p-6 border border-border-hairline hover:border-primary transition-colors"
+                >
+                  <p className="text-label-md text-on-surface-variant">{account.name}</p>
+                  <p className="text-headline-md font-bold text-on-surface mt-2">
+                    ${Number(account.balance).toFixed(2)}
+                  </p>
+                  <p className="text-body-sm text-on-surface-variant mt-1 capitalize">
+                    {account.type}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>
@@ -82,36 +95,19 @@ export default function Dashboard() {
                   {budgetHealth}%
                 </span>
               </p>
-              <div className="w-full bg-surface rounded-full h-2 mt-3 overflow-hidden">
-                <div
-                  className={`h-full transition-all ${
-                    budgetHealth > 100
-                      ? 'bg-status-error'
-                      : budgetHealth > 80
-                        ? 'bg-status-warning'
-                        : 'bg-status-success'
-                  }`}
-                  style={{ width: `${Math.min(budgetHealth, 100)}%` }}
-                />
-              </div>
             </div>
-
             <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
               <p className="text-label-md text-on-surface-variant">Budgeted</p>
               <p className="text-headline-md font-bold text-on-surface mt-2">
                 ${totalBudgeted.toFixed(2)}
               </p>
-              <p className="text-body-sm text-on-surface-variant mt-1">This month</p>
             </div>
-
             <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
               <p className="text-label-md text-on-surface-variant">Spent</p>
               <p className="text-headline-md font-bold text-on-surface mt-2">
                 ${totalSpent.toFixed(2)}
               </p>
-              <p className="text-body-sm text-on-surface-variant mt-1">This month</p>
             </div>
-
             <div
               className={`rounded-lg p-6 border ${
                 totalRemaining >= 0
@@ -127,7 +123,6 @@ export default function Dashboard() {
               >
                 ${totalRemaining.toFixed(2)}
               </p>
-              <p className="text-body-sm text-on-surface-variant mt-1">Unspent</p>
             </div>
           </div>
         </div>
@@ -152,7 +147,6 @@ export default function Dashboard() {
                   ))}
               </div>
             </div>
-
             <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
               <div className="flex justify-between items-center mb-4">
                 <p className="text-headline-sm font-bold text-on-surface">Over Budget</p>

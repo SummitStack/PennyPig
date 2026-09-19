@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '../../../../lib/apiAuth'
 import { plaidRequest } from '../../../../lib/plaid'
+import { requireAuthedClient } from '../../../../lib/supabaseServer'
 
 export async function POST(request: NextRequest) {
   try {
-    const { error } = await requireUser(request)
-    if (error) return error
+    const auth = await requireAuthedClient(request)
+    if (auth.error) return auth.error
 
     const { access_token } = await request.json()
-
     if (!access_token) {
       return NextResponse.json({ error: 'Missing access_token' }, { status: 400 })
     }
@@ -28,7 +27,7 @@ export async function POST(request: NextRequest) {
       throw new Error(data.error_message || 'Failed to fetch transactions')
     }
 
-    const transactions = data.transactions.map((txn: any) => ({
+    const transactions = (data.transactions || []).map((txn: any) => ({
       id: txn.transaction_id,
       date: txn.date,
       merchant: txn.merchant_name || 'Unknown',

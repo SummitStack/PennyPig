@@ -1,12 +1,12 @@
 # PennyPig
 
-Personal budgeting app (YNAB-inspired). Monorepo with Next.js frontend at `apps/web`.
+Personal budgeting app (YNAB-inspired). Monorepo with Next.js at `apps/web`.
 
 ## Stack
-- React 18 + Next.js 14 (App Router host + React Router screens)
-- Zustand, TailwindCSS
-- Supabase Auth + Postgres schema (`supabase-schema.sql`)
-- Plaid (sandbox) via Next.js API routes
+- React 18 + Next.js 14 (App Router catch-all + React Router screens)
+- Zustand + TailwindCSS
+- Supabase Auth + Postgres (RLS)
+- Plaid Link via Next.js API routes (`link_token` flow)
 
 ## Local setup
 ```bash
@@ -16,7 +16,16 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+## Environment
+| Var | Where |
+|-----|--------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser + server |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser + server |
+| `PLAID_CLIENT_ID` | Server only |
+| `PLAID_SECRET` | Server only |
+| `PLAID_ENV` | `sandbox` / `development` / `production` |
 
-## Current status
-Deployed UI prototype with Auth + Plaid scaffolding. Domain data is still mostly mock/Zustand until stores are wired to Supabase.
+## Data model
+`users`, `plaid_items` (server-held access tokens), `accounts`, `categories`, `transactions`, `budgets`.
+
+On signup, a trigger creates the profile row and default categories. Budget activity is computed from transactions.

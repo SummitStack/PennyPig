@@ -1,30 +1,29 @@
 import { useState } from 'react'
 import { useAccountStore } from '../../store/accountStore'
+import { useTransactionStore } from '../../store/transactionStore'
+import { useBudgetStore } from '../../store/budgetStore'
 import { authFetch } from '../../lib/authFetch'
 
 export default function AccountCard({ account }) {
   const [syncing, setSyncing] = useState(false)
   const removeAccount = useAccountStore((state) => state.removeAccount)
-  const syncAccount = useAccountStore((state) => state.syncAccount)
+  const loadAccounts = useAccountStore((state) => state.loadAccounts)
+  const loadData = useTransactionStore((state) => state.loadData)
+  const loadBudgets = useBudgetStore((state) => state.loadBudgets)
 
   const handleSync = async () => {
-    if (!account.accessToken) {
-      alert('This account has no Plaid access token. Reconnect it with Plaid Link to sync.')
-      return
-    }
-
     setSyncing(true)
     try {
-      const response = await authFetch('/api/plaid/transactions', {
+      const response = await authFetch('/api/plaid/sync', {
         method: 'POST',
-        body: JSON.stringify({ access_token: account.accessToken }),
+        body: JSON.stringify({ account_id: account.id }),
       })
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Sync failed')
 
-      syncAccount(account.id)
-      alert(`${account.name} synced (${data.transactions?.length ?? 0} transactions fetched)`)
+      await Promise.all([loadAccounts(), loadData(), loadBudgets()])
+      alert(`${account.name} synced (${data.synced ?? 0} transactions)`)
     } catch (error) {
       console.error('Sync error:', error)
       alert(`Error: ${error.message}`)
@@ -33,10 +32,11 @@ export default function AccountCard({ account }) {
     }
   }
 
-  const handleRemove = () => {
-    if (confirm(`Remove ${account.name}?`)) {
-      removeAccount(account.id)
-    }
+  const handleRemove = async () => {
+    if (!confirm(`Remove ${account.name}?`)) return
+    const result = await removeAccount(account.id)
+    if (!result.success) alert(result.error || 'Failed to remove account')
+    else await loadData()
   }
 
   const lastSyncTime = account.lastSynced
@@ -50,11 +50,7 @@ export default function AccountCard({ account }) {
           <h3 className="text-headline-sm font-bold text-on-surface">{account.name}</h3>
           <p className="text-label-md text-on-surface-variant mt-1">{account.institution}</p>
         </div>
-        <span className={`text-label-md px-3 py-1 rounded ${
-          account.status === 'active'
-            ? 'bg-status-success bg-opacity-10 text-status-success'
-            : 'bg-status-error bg-opacity-10 text-status-error'
-        }`}>
+        <span className="text-label-md px-3 py-1 rounded bg-status-success bg-opacity-10 text-status-success">
           {account.status}
         </span>
       </div>
@@ -64,15 +60,13 @@ export default function AccountCard({ account }) {
           <span className="text-body-sm text-on-surface-variant">Account</span>
           <span className="text-body-md text-on-surface font-medium">{account.accountNumber}</span>
         </div>
-        {account.routingNumber && (
-          <div className="flex justify-between">
-            <span className="text-body-sm text-on-surface-variant">Routing</span>
-            <span className="text-body-md text-on-surface font-medium">{account.routingNumber}</span>
-          </div>
-        )}
         <div className="flex justify-between">
           <span className="text-body-sm text-on-surface-variant">Balance</span>
-          <span className={`text-body-md font-bold ${account.balance < 0 ? 'text-status-error' : 'text-status-success'}`}>
+          <span
+            className={`text-body-md font-bold ${
+              account.balance < 0 ? 'text-status-error' : 'text-status-success'
+            }`}
+          >
             ${Number(account.balance).toFixed(2)}
           </span>
         </div>

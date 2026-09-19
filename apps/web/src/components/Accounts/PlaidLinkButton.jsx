@@ -2,11 +2,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { usePlaidLink } from 'react-plaid-link'
 import { useAuthStore } from '../../store/authStore'
 import { useAccountStore } from '../../store/accountStore'
+import { useTransactionStore } from '../../store/transactionStore'
+import { useBudgetStore } from '../../store/budgetStore'
 import { authFetch } from '../../lib/authFetch'
 
 export default function PlaidLinkButton() {
   const user = useAuthStore((state) => state.user)
-  const addAccount = useAccountStore((state) => state.addAccount)
+  const loadAccounts = useAccountStore((state) => state.loadAccounts)
+  const loadData = useTransactionStore((state) => state.loadData)
+  const loadBudgets = useBudgetStore((state) => state.loadBudgets)
   const [linkToken, setLinkToken] = useState(null)
   const [linking, setLinking] = useState(false)
   const [error, setError] = useState(null)
@@ -48,29 +52,14 @@ export default function PlaidLinkButton() {
         const exchangeData = await exchangeResponse.json()
         if (!exchangeResponse.ok) throw new Error(exchangeData.error)
 
-        const accountsResponse = await authFetch('/api/plaid/accounts', {
-          method: 'POST',
-          body: JSON.stringify({ access_token: exchangeData.access_token }),
-        })
-
-        const accountsData = await accountsResponse.json()
-        if (!accountsResponse.ok) throw new Error(accountsData.error)
-
-        accountsData.accounts.forEach((account) => {
-          addAccount({
-            name: account.name,
-            type: account.type,
-            plaidAccountId: account.id,
-            accountNumber: account.mask ? `****${account.mask}` : '••••',
-            institution: 'Plaid Connected',
-            balance: account.balance ?? 0,
-            accessToken: exchangeData.access_token,
-            itemId: exchangeData.item_id,
-            status: 'active',
-          })
-        })
-
-        alert('Accounts connected successfully!')
+        await Promise.all([loadAccounts(), loadData(), loadBudgets()])
+        alert(
+          `Accounts connected${
+            exchangeData.synced_transactions
+              ? ` (${exchangeData.synced_transactions} transactions synced)`
+              : ''
+          }!`
+        )
       } catch (err) {
         console.error('Error:', err)
         setError(err.message)
@@ -79,7 +68,7 @@ export default function PlaidLinkButton() {
         setLinking(false)
       }
     },
-    [addAccount]
+    [loadAccounts, loadData, loadBudgets]
   )
 
   const { open, ready } = usePlaidLink({
@@ -99,9 +88,7 @@ export default function PlaidLinkButton() {
       >
         {linking ? 'Connecting...' : !linkToken ? 'Preparing...' : '+ Connect Account'}
       </button>
-      {error && (
-        <p className="text-body-sm text-status-error">{error}</p>
-      )}
+      {error && <p className="text-body-sm text-status-error">{error}</p>}
     </div>
   )
 }
