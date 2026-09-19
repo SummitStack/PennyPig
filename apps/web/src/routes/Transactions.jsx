@@ -6,6 +6,7 @@ import MainLayout from '../components/Layout/MainLayout'
 import TransactionList from '../components/Transactions/TransactionList'
 import { authFetch } from '../lib/authFetch'
 import Icon from '../components/ui/Icon'
+import { buildCategoryTree, getLeafCategories } from '../lib/categories'
 
 export default function TransactionsPage() {
   const filter = useTransactionStore((state) => state.filter)
@@ -17,6 +18,9 @@ export default function TransactionsPage() {
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadBudgets = useBudgetStore((state) => state.loadBudgets)
   const [syncLoading, setSyncLoading] = useState(false)
+
+  const expenseTree = buildCategoryTree(categories, 'expense')
+  const incomeLeaves = getLeafCategories(categories, 'income')
 
   const handleSync = async () => {
     setSyncLoading(true)
@@ -65,9 +69,24 @@ export default function TransactionsPage() {
               className={`${inputClass} cursor-pointer`}
             >
               <option value="">All Categories</option>
-              {categories.map((cat) => (
+              {expenseTree.map((root) =>
+                root.children.length > 0 ? (
+                  <optgroup key={root.id} label={`${root.emoji} ${root.name}`}>
+                    {root.children.map((child) => (
+                      <option key={child.id} value={child.name}>
+                        {child.emoji} {child.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : (
+                  <option key={root.id} value={root.name}>
+                    {root.emoji} {root.name}
+                  </option>
+                )
+              )}
+              {incomeLeaves.map((cat) => (
                 <option key={cat.id} value={cat.name}>
-                  {cat.name}
+                  {cat.emoji} {cat.name}
                 </option>
               ))}
             </select>

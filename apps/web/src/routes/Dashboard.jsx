@@ -4,21 +4,7 @@ import { useAccountStore } from '../store/accountStore'
 import { useTransactionStore } from '../store/transactionStore'
 import MainLayout from '../components/Layout/MainLayout'
 import Icon from '../components/ui/Icon'
-
-const CATEGORY_ICONS = {
-  Rent: 'home',
-  Living: 'home',
-  Dining: 'restaurant',
-  'Food & Dining': 'restaurant',
-  Groceries: 'shopping_cart',
-  Transportation: 'directions_car',
-  Gas: 'local_gas_station',
-  Subscriptions: 'subscriptions',
-  Entertainment: 'movie',
-  Shopping: 'shopping_bag',
-  Coffee: 'coffee',
-  Salary: 'payments',
-}
+import { getLeafCategories } from '../lib/categories'
 
 function accountIcon(type) {
   if (type === 'credit') return 'credit_card'
@@ -46,24 +32,24 @@ export default function Dashboard() {
   const transactions = useTransactionStore((state) => state.transactions)
   const categories = useTransactionStore((state) => state.categories)
   const {
-    budgets,
     currentMonth,
-    getSpending,
+    getBudgetedFor,
+    getActivityFor,
     getTotalSpent,
     getTotalBudgeted,
     getReadyToAssign,
   } = useBudgetStore()
 
-  const spending = getSpending(currentMonth)
-  const budgetMap = budgets[currentMonth] || {}
-  const expenseCats = categories.filter((c) => c.type === 'expense')
-  const incomeNames = new Set(categories.filter((c) => c.type === 'income').map((c) => c.name))
+  const expenseLeaves = getLeafCategories(categories, 'expense')
+  const incomeIds = new Set(
+    categories.filter((c) => c.type === 'income').map((c) => c.id)
+  )
 
   const moneyIn = transactions.reduce((sum, txn) => {
     const d = new Date(txn.date)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     if (key !== currentMonth) return sum
-    if (incomeNames.has(txn.category)) return sum + Number(txn.amount || 0)
+    if (incomeIds.has(txn.categoryId)) return sum + Number(txn.amount || 0)
     return sum
   }, 0)
 
@@ -91,13 +77,13 @@ export default function Dashboard() {
         })
       : 'Not synced yet'
 
-  const categoryRows = expenseCats
+  const categoryRows = expenseLeaves
     .map((cat) => {
-      const budgeted = Number(budgetMap[cat.name] || 0)
-      const activity = Number(spending[cat.name] || 0)
+      const budgeted = getBudgetedFor(cat.id)
+      const activity = getActivityFor(cat.id)
       if (budgeted === 0 && activity === 0) return null
       const pct = budgeted > 0 ? Math.round((activity / budgeted) * 100) : activity > 0 ? 100 : 0
-      return { name: cat.name, budgeted, activity, pct }
+      return { id: cat.id, name: cat.name, emoji: cat.emoji, budgeted, activity, pct }
     })
     .filter(Boolean)
     .sort((a, b) => b.activity - a.activity)
@@ -205,7 +191,7 @@ export default function Dashboard() {
                 )}
                 {categoryRows.map((row, idx) => (
                   <div
-                    key={row.name}
+                    key={row.id}
                     className={`flex flex-col gap-space-xs ${
                       idx < categoryRows.length - 1
                         ? 'border-b border-outline-variant pb-space-md'
@@ -214,10 +200,9 @@ export default function Dashboard() {
                   >
                     <div className="flex items-center justify-between text-body-md">
                       <div className="flex items-center gap-space-sm font-medium text-on-surface">
-                        <Icon
-                          name={CATEGORY_ICONS[row.name] || 'label'}
-                          className="text-[18px] text-primary"
-                        />
+                        <span className="text-lg leading-none" aria-hidden>
+                          {row.emoji || '📁'}
+                        </span>
                         {row.name}
                       </div>
                       <div className="text-body-sm font-medium text-on-surface-variant">
@@ -268,11 +253,11 @@ export default function Dashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/transactions')}
+                onClick={() => navigate('/settings')}
                 className="flex items-center gap-space-sm rounded-lg border border-outline-variant bg-surface-base px-space-lg py-space-md text-body-md font-medium text-on-surface transition-colors hover:bg-surface-container-high"
               >
-                <Icon name="bar_chart" className="text-[18px]" />
-                View Transactions
+                <Icon name="category" className="text-[18px]" />
+                Manage Categories
               </button>
             </div>
           </div>
