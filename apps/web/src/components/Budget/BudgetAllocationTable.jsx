@@ -250,6 +250,17 @@ function CategoryRowContent({
             <Icon name="add" className="text-[14px]" />
           </button>
         )}
+        {manageMode && !isGroup && depth === 0 && !isOverlay && (
+          <button
+            type="button"
+            onClick={() => onAddChild(category.id)}
+            className="ml-auto flex h-6 w-6 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+            title="Add subcategory (turns this into a group)"
+            aria-label={`Add subcategory under ${category.name}`}
+          >
+            <Icon name="add" className="text-[14px]" />
+          </button>
+        )}
       </div>
 
       <div className="col-span-2 text-center">
@@ -454,14 +465,15 @@ export default function BudgetAllocationTable() {
   }
 
   const handleCreate = async (values) => {
+    const creatingGroup = panel?.kind === 'group'
     const result = await createCategory({
       ...values,
       type: 'expense',
-      parentId: values.parentId ?? panel?.parentId ?? null,
+      parentId: creatingGroup
+        ? null
+        : values.parentId ?? panel?.parentId ?? null,
     })
     if (result.success) {
-      setPanel(null)
-      setFlash('Category added')
       if (result.category) {
         setDraftCategories((prev) =>
           prev ? [...prev, result.category] : [result.category]
@@ -474,6 +486,32 @@ export default function BudgetAllocationTable() {
             },
           }))
         }
+      }
+
+      if (creatingGroup && result.category) {
+        // Expand the new group and immediately prompt for a subcategory
+        useBudgetStore.setState((state) => ({
+          expandedGroups: {
+            ...state.expandedGroups,
+            [result.category.id]: true,
+          },
+        }))
+        setFlash(`Group “${result.category.name}” created — add a subcategory`)
+        setPanel({
+          mode: 'add',
+          kind: 'category',
+          parentId: result.category.id,
+          category: {
+            emoji: '📁',
+            type: 'expense',
+            parentId: result.category.id,
+          },
+        })
+      } else {
+        setPanel(null)
+        setFlash(
+          result.category?.parentId ? 'Subcategory added' : 'Category added'
+        )
       }
     }
     return result
@@ -537,6 +575,7 @@ export default function BudgetAllocationTable() {
     onAddChild: (parentId) =>
       setPanel({
         mode: 'add',
+        kind: 'category',
         parentId,
         category: { emoji: '📁', type: 'expense', parentId },
       }),
@@ -549,15 +588,31 @@ export default function BudgetAllocationTable() {
       {manageMode && (
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cool-blue/30 bg-cool-blue/10 px-2 py-1.5">
           <p className="text-label-md text-on-surface">
-            Editing categories — drag ☰ to reorder live. Drop under a group to nest.
-            Click a name to edit.
+            Editing categories — drag ☰ to reorder. Use + on a group to add a
+            subcategory. Click a name to edit.
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() =>
                 setPanel({
                   mode: 'add',
+                  kind: 'group',
+                  parentId: null,
+                  category: { emoji: '📂', type: 'expense' },
+                })
+              }
+              className="inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-surface-base px-space-sm py-1 text-label-md font-semibold text-primary hover:bg-primary/10"
+            >
+              <Icon name="create_new_folder" className="text-[14px]" />
+              Add group
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setPanel({
+                  mode: 'add',
+                  kind: 'category',
                   parentId: null,
                   category: { emoji: '📁', type: 'expense' },
                 })
@@ -565,7 +620,7 @@ export default function BudgetAllocationTable() {
               className="inline-flex items-center gap-1 rounded-lg bg-primary px-space-sm py-1 text-label-md font-semibold text-on-primary"
             >
               <Icon name="add" className="text-[14px]" />
-              Add category
+              Add subcategory
             </button>
             <button
               type="button"
@@ -583,7 +638,13 @@ export default function BudgetAllocationTable() {
         <div className="mb-2 space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-body-md font-bold text-on-surface">
-              {panel.mode === 'add' ? 'Add category' : `Edit ${panel.category?.name}`}
+              {panel.mode === 'edit'
+                ? `Edit ${panel.category?.name}`
+                : panel.kind === 'group'
+                  ? 'Add parent group'
+                  : panel.parentId
+                    ? 'Add subcategory'
+                    : 'Add subcategory'}
             </h3>
             {panel.mode === 'edit' && (
               <button
@@ -597,21 +658,46 @@ export default function BudgetAllocationTable() {
             )}
           </div>
           <CategoryForm
-            key={panel.category?.id || `add-${panel.parentId || 'root'}`}
+            key={
+              panel.category?.id ||
+              `add-${panel.kind || 'category'}-${panel.parentId || 'root'}`
+            }
             initial={
               panel.mode === 'edit'
                 ? panel.category
                 : {
-                    emoji: '📁',
+                    emoji: panel.kind === 'group' ? '📂' : '📁',
                     type: 'expense',
                     parentId: panel.parentId,
                   }
             }
             parents={parents}
             showType={false}
+            role={
+              panel.mode === 'edit'
+                ? 'edit'
+                : panel.kind === 'group'
+                  ? 'group'
+                  : 'category'
+            }
+            requireParent={
+              panel.mode === 'add' &&
+              panel.kind === 'category' &&
+              Boolean(panel.parentId)
+            }
+            allowParentChange={
+              panel.mode === 'edit' ||
+              (panel.mode === 'add' && panel.kind === 'category')
+            }
             onSubmit={panel.mode === 'add' ? handleCreate : handleUpdate}
             onCancel={() => setPanel(null)}
-            submitLabel={panel.mode === 'add' ? 'Add category' : 'Save changes'}
+            submitLabel={
+              panel.mode === 'edit'
+                ? 'Save changes'
+                : panel.kind === 'group'
+                  ? 'Create group'
+                  : 'Add subcategory'
+            }
           />
         </div>
       )}

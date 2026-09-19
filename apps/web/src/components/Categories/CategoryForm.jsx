@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import EmojiPicker from '../Settings/EmojiPicker'
 
+/**
+ * @param {'group' | 'category' | 'edit'} [role]
+ *   group    — create a top-level parent group (no parent picker)
+ *   category — create a subcategory (or standalone leaf); parent optional/required
+ *   edit     — edit existing
+ */
 export default function CategoryForm({
   initial,
   parents,
@@ -9,9 +15,14 @@ export default function CategoryForm({
   submitLabel,
   showType = true,
   allowParentChange = true,
+  role = 'edit',
+  requireParent = false,
 }) {
+  const isGroup = role === 'group'
   const [name, setName] = useState(initial?.name || '')
-  const [emoji, setEmoji] = useState(initial?.emoji || '📁')
+  const [emoji, setEmoji] = useState(
+    initial?.emoji || (isGroup ? '📂' : '📁')
+  )
   const [type, setType] = useState(initial?.type || 'expense')
   const [parentId, setParentId] = useState(initial?.parentId || '')
   const [showPicker, setShowPicker] = useState(false)
@@ -24,13 +35,17 @@ export default function CategoryForm({
       setError('Name is required')
       return
     }
+    if (requireParent && !parentId) {
+      setError('Choose a parent group')
+      return
+    }
     setSaving(true)
     setError(null)
     const result = await onSubmit({
       name: name.trim(),
       emoji,
       type,
-      parentId: parentId || null,
+      parentId: isGroup ? null : parentId || null,
     })
     setSaving(false)
     if (!result?.success) {
@@ -38,11 +53,27 @@ export default function CategoryForm({
     }
   }
 
+  const parentOptions = parents.filter(
+    (p) => p.id !== initial?.id && p.type === type && !p.parentId
+  )
+
   return (
     <form
       onSubmit={handleSubmit}
       className="space-y-space-md rounded-lg border border-border-hairline bg-surface-container p-space-md"
     >
+      {isGroup && (
+        <p className="text-label-md text-on-surface-variant">
+          Groups organize subcategories (like Food & Dining). You can add
+          subcategories right after creating the group.
+        </p>
+      )}
+      {role === 'category' && requireParent && (
+        <p className="text-label-md text-on-surface-variant">
+          Subcategories are what you budget and assign transactions to.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-end gap-space-md">
         <div>
           <label className="mb-1 block text-label-sm text-on-surface-variant">Emoji</label>
@@ -56,12 +87,15 @@ export default function CategoryForm({
           </button>
         </div>
         <div className="min-w-[12rem] flex-1">
-          <label className="mb-1 block text-label-sm text-on-surface-variant">Name</label>
+          <label className="mb-1 block text-label-sm text-on-surface-variant">
+            {isGroup ? 'Group name' : 'Name'}
+          </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Category name"
+            placeholder={isGroup ? 'e.g. Healthcare' : 'e.g. Groceries'}
             className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-cool-blue"
+            autoFocus
           />
         </div>
         {showType && (
@@ -78,7 +112,7 @@ export default function CategoryForm({
             </select>
           </div>
         )}
-        {allowParentChange && (
+        {!isGroup && allowParentChange && (
           <div className="min-w-[10rem] flex-1">
             <label className="mb-1 block text-label-sm text-on-surface-variant">
               Parent group
@@ -87,15 +121,21 @@ export default function CategoryForm({
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
               className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface"
+              required={requireParent}
             >
-              <option value="">None (top-level)</option>
-              {parents
-                .filter((p) => p.id !== initial?.id && p.type === type)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.emoji} {p.name}
-                  </option>
-                ))}
+              {!requireParent && (
+                <option value="">None (top-level category)</option>
+              )}
+              {requireParent && (
+                <option value="" disabled>
+                  Select a group…
+                </option>
+              )}
+              {parentOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.emoji} {p.name}
+                </option>
+              ))}
             </select>
           </div>
         )}
