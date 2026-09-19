@@ -391,6 +391,43 @@ export const useTransactionStore = create((set, get) => ({
     return { success: true }
   },
 
+  /** Persist a full parent/sort layout (used after live drag-and-drop). */
+  applyCategoryLayout: async (layout) => {
+    // layout: [{ id, parentId, sortOrder }, ...]
+    if (!Array.isArray(layout) || layout.length === 0) {
+      return { success: true }
+    }
+
+    set((state) => ({
+      categories: state.categories.map((c) => {
+        const hit = layout.find((u) => u.id === c.id)
+        if (!hit) return c
+        return {
+          ...c,
+          parentId: hit.parentId ?? null,
+          sortOrder: hit.sortOrder,
+        }
+      }),
+    }))
+
+    if (!supabase) return { success: true }
+
+    for (const u of layout) {
+      const { error } = await supabase
+        .from('categories')
+        .update({
+          parent_id: u.parentId ?? null,
+          sort_order: u.sortOrder,
+        })
+        .eq('id', u.id)
+      if (error) {
+        await get().reloadCategories()
+        return { success: false, error: error.message }
+      }
+    }
+    return { success: true }
+  },
+
   categorizeTransaction: async (transactionId, categoryId) => {
     const category = categoryId
       ? get().categories.find((c) => c.id === categoryId)

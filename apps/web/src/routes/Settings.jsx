@@ -20,7 +20,7 @@ export default function SettingsPage() {
                 Budget &amp; Allocation
               </Link>
               . Use the pencil next to the Category heading to unlock editing, then
-              drag the ☰ handle to reorder or move between groups.
+              drag the ☰ handle to reorder live. Click Save when finished.
             </p>
           </SettingsSection>
 

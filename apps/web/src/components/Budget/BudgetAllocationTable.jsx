@@ -1,10 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useBudgetStore } from '../../store/budgetStore'
 import { useTransactionStore } from '../../store/transactionStore'
 import {
   buildCategoryTree,
   getRootCategories,
-  isParentCategory,
 } from '../../lib/categories'
 import CategoryForm from '../Categories/CategoryForm'
 import Icon from '../ui/Icon'
@@ -69,7 +83,75 @@ function MoneyCell({
   )
 }
 
-function CategoryRow({
+/** Visible flat rows from a category list + expanded map. */
+function flattenVisible(categories, expandedGroups) {
+  const tree = buildCategoryTree(categories, 'expense')
+  const rows = []
+  for (const root of tree) {
+    const hasChildren = root.children.length > 0
+    rows.push({
+      id: root.id,
+      category: root,
+      depth: 0,
+      isGroup: hasChildren,
+    })
+    if (hasChildren && expandedGroups[root.id] !== false) {
+      for (const child of root.children) {
+        rows.push({
+          id: child.id,
+          category: child,
+          depth: 1,
+          isGroup: false,
+        })
+      }
+    }
+  }
+  return rows
+}
+
+/** Ids that act as group headers (have children in this category set). */
+function groupIdSet(categories) {
+  return new Set(
+    categories.filter((c) => categories.some((x) => x.parentId === c.id)).map((c) => c.id)
+  )
+}
+
+/**
+ * Rebuild parent/sort from a flat visible order.
+ * Group headers stay top-level; leaves attach to the nearest preceding group.
+ */
+function layoutFromFlatIds(flatIds, categories) {
+  const groups = groupIdSet(categories)
+  const byId = Object.fromEntries(categories.map((c) => [c.id, { ...c }]))
+  let lastGroup = null
+  let rootOrder = 0
+  const childCount = {}
+
+  for (const id of flatIds) {
+    const cat = byId[id]
+    if (!cat || cat.type !== 'expense') continue
+
+    if (groups.has(id)) {
+      cat.parentId = null
+      rootOrder += 1
+      cat.sortOrder = rootOrder * 10
+      lastGroup = id
+      childCount[id] = 0
+    } else if (lastGroup) {
+      cat.parentId = lastGroup
+      childCount[lastGroup] = (childCount[lastGroup] || 0) + 1
+      cat.sortOrder = childCount[lastGroup] * 10
+    } else {
+      cat.parentId = null
+      rootOrder += 1
+      cat.sortOrder = rootOrder * 10
+    }
+  }
+
+  return Object.values(byId)
+}
+
+function CategoryRowContent({
   category,
   depth,
   isGroup,
@@ -85,115 +167,97 @@ function CategoryRow({
   manageMode,
   onEditCategory,
   onAddChild,
-  draggingId,
-  dropHint,
-  onDragStart,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onDragEnd,
+  dragHandleProps,
+  isOverlay = false,
 }) {
   const available = budgeted - activity
   const pad = depth === 0 ? '' : 'pl-5'
-  const isDragging = draggingId === category.id
-  const showBefore = dropHint?.id === category.id && dropHint.position === 'before'
-  const showAfter = dropHint?.id === category.id && dropHint.position === 'after'
-  const showInto = dropHint?.id === category.id && dropHint.position === 'into'
 
   return (
     <div
-      className={`group relative py-1 ${isGroup ? 'bg-surface-container/40' : ''} ${
-        isDragging ? 'opacity-40' : ''
-      } ${showInto ? 'ring-1 ring-inset ring-cool-blue/60 bg-cool-blue/10' : ''}`}
-      onDragOver={(e) => onDragOver(e, category, isGroup)}
-      onDragLeave={() => onDragLeave(category.id)}
-      onDrop={(e) => onDrop(e, category)}
+      className={`grid grid-cols-12 items-center py-1 ${
+        isGroup ? 'bg-surface-container/40' : ''
+      } ${isOverlay ? 'rounded-lg border border-border-hairline bg-surface-container-high shadow-xl ring-1 ring-cool-blue/40' : ''}`}
     >
-      {showBefore && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 bg-cool-blue" />
-      )}
-      {showAfter && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-0.5 bg-cool-blue" />
-      )}
+      <div className={`col-span-5 flex min-w-0 items-center gap-0.5 ${pad}`}>
+        {manageMode ? (
+          <button
+            type="button"
+            className="flex h-6 w-6 cursor-grab items-center justify-center rounded text-on-surface-variant active:cursor-grabbing hover:bg-surface-container hover:text-on-surface"
+            title="Drag to reorder"
+            aria-label={`Drag ${category.name}`}
+            {...dragHandleProps}
+          >
+            <Icon name="menu" className="text-[16px]" />
+          </button>
+        ) : (
+          <span className="w-6" />
+        )}
 
-      <div className="grid grid-cols-12 items-center">
-        <div className={`col-span-5 flex min-w-0 items-center gap-0.5 ${pad}`}>
-          {manageMode ? (
-            <span
-              draggable
-              onDragStart={(e) => onDragStart(e, category)}
-              onDragEnd={onDragEnd}
-              className="flex h-6 w-6 cursor-grab items-center justify-center rounded text-on-surface-variant active:cursor-grabbing hover:bg-surface-container hover:text-on-surface"
-              title="Drag to reorder"
-              aria-label={`Drag ${category.name}`}
-              role="button"
-              tabIndex={0}
-            >
-              <Icon name="menu" className="text-[16px]" />
-            </span>
-          ) : (
-            <span className="w-6" />
-          )}
+        {isGroup ? (
+          <button
+            type="button"
+            onClick={() => onToggleExpand?.(category.id)}
+            className="flex h-6 w-6 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+            aria-label={expanded ? 'Collapse group' : 'Expand group'}
+          >
+            <Icon
+              name={expanded ? 'expand_more' : 'chevron_right'}
+              className="text-[18px]"
+            />
+          </button>
+        ) : (
+          <span className="w-6" />
+        )}
 
-          {isGroup ? (
-            <button
-              type="button"
-              onClick={() => onToggleExpand(category.id)}
-              className="flex h-6 w-6 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
-              aria-label={expanded ? 'Collapse group' : 'Expand group'}
-            >
-              <Icon
-                name={expanded ? 'expand_more' : 'chevron_right'}
-                className="text-[18px]"
-              />
-            </button>
-          ) : (
-            <span className="w-6" />
-          )}
+        <span className="text-sm leading-none" aria-hidden>
+          {category.emoji || '📁'}
+        </span>
 
-          <span className="text-sm leading-none" aria-hidden>
-            {category.emoji || '📁'}
+        {manageMode && !isOverlay ? (
+          <button
+            type="button"
+            onClick={() => onEditCategory(category)}
+            className={`min-w-0 truncate rounded px-1 text-left text-body-sm hover:bg-surface-container ${
+              isGroup
+                ? 'font-bold uppercase tracking-wide text-on-surface'
+                : 'font-medium text-on-surface'
+            }`}
+            title="Edit category"
+          >
+            {category.name}
+          </button>
+        ) : (
+          <span
+            className={`min-w-0 truncate text-body-sm ${
+              isGroup
+                ? 'font-bold uppercase tracking-wide text-on-surface'
+                : 'font-medium text-on-surface'
+            }`}
+          >
+            {category.name}
           </span>
+        )}
 
-          {manageMode ? (
-            <button
-              type="button"
-              onClick={() => onEditCategory(category)}
-              className={`min-w-0 truncate rounded px-1 text-left text-body-sm hover:bg-surface-container ${
-                isGroup
-                  ? 'font-bold uppercase tracking-wide text-on-surface'
-                  : 'font-medium text-on-surface'
-              }`}
-              title="Edit category"
-            >
-              {category.name}
-            </button>
-          ) : (
-            <span
-              className={`min-w-0 truncate text-body-sm ${
-                isGroup
-                  ? 'font-bold uppercase tracking-wide text-on-surface'
-                  : 'font-medium text-on-surface'
-              }`}
-            >
-              {category.name}
-            </span>
-          )}
+        {manageMode && isGroup && !isOverlay && (
+          <button
+            type="button"
+            onClick={() => onAddChild(category.id)}
+            className="ml-auto flex h-6 w-6 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+            title="Add subcategory"
+            aria-label={`Add subcategory under ${category.name}`}
+          >
+            <Icon name="add" className="text-[14px]" />
+          </button>
+        )}
+      </div>
 
-          {manageMode && isGroup && (
-            <button
-              type="button"
-              onClick={() => onAddChild(category.id)}
-              className="ml-auto flex h-6 w-6 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
-              title="Add subcategory"
-              aria-label={`Add subcategory under ${category.name}`}
-            >
-              <Icon name="add" className="text-[14px]" />
-            </button>
-          )}
-        </div>
-
-        <div className="col-span-2 text-center">
+      <div className="col-span-2 text-center">
+        {isOverlay ? (
+          <span className="text-body-sm font-medium text-on-surface">
+            ${budgeted.toFixed(0)}
+          </span>
+        ) : (
           <MoneyCell
             categoryId={category.id}
             budgeted={budgeted}
@@ -204,36 +268,64 @@ function CategoryRow({
             setEditValue={setEditValue}
             onSave={onSaveBudget}
           />
-        </div>
-        <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
-          ${activity.toFixed(0)}
-        </div>
-        <div
-          className={`col-span-3 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
-            budgeted,
-            activity
-          )}`}
-        >
-          <span>
-            {available < 0 ? '-' : ''}${Math.abs(available).toFixed(0)}
-          </span>
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${statusDot(budgeted, activity)} ${
-              available < 0 ? 'animate-pulse' : ''
-            }`}
-          />
-        </div>
+        )}
+      </div>
+      <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
+        ${activity.toFixed(0)}
+      </div>
+      <div
+        className={`col-span-3 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
+          budgeted,
+          activity
+        )}`}
+      >
+        <span>
+          {available < 0 ? '-' : ''}${Math.abs(available).toFixed(0)}
+        </span>
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${statusDot(budgeted, activity)} ${
+            available < 0 ? 'animate-pulse' : ''
+          }`}
+        />
       </div>
     </div>
   )
 }
 
+function SortableCategoryRow(props) {
+  const { category, manageMode } = props
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: category.id, disabled: !manageMode })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1,
+    zIndex: isDragging ? 1 : undefined,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative border-b border-border-hairline/60">
+      <CategoryRowContent
+        {...props}
+        dragHandleProps={manageMode ? { ...attributes, ...listeners } : {}}
+      />
+    </div>
+  )
+}
+
 export default function BudgetAllocationTable() {
-  const categories = useTransactionStore((state) => state.categories)
+  const storeCategories = useTransactionStore((state) => state.categories)
   const createCategory = useTransactionStore((state) => state.createCategory)
   const updateCategory = useTransactionStore((state) => state.updateCategory)
   const deleteCategory = useTransactionStore((state) => state.deleteCategory)
-  const relocateCategory = useTransactionStore((state) => state.relocateCategory)
+  const applyCategoryLayout = useTransactionStore((state) => state.applyCategoryLayout)
 
   const updateBudget = useBudgetStore((state) => state.updateBudget)
   const getBudgetedFor = useBudgetStore((state) => state.getBudgetedFor)
@@ -243,19 +335,62 @@ export default function BudgetAllocationTable() {
   const expandedGroups = useBudgetStore((state) => state.expandedGroups)
   const toggleGroup = useBudgetStore((state) => state.toggleGroup)
 
-  const tree = buildCategoryTree(categories, 'expense')
+  const [manageMode, setManageMode] = useState(false)
+  const [draftCategories, setDraftCategories] = useState(null)
+  const [editingCell, setEditingCell] = useState(null)
+  const [editValue, setEditValue] = useState('')
+  const [panel, setPanel] = useState(null)
+  const [flash, setFlash] = useState(null)
+  const [activeId, setActiveId] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const categories = draftCategories || storeCategories
+
+  useEffect(() => {
+    if (manageMode && draftCategories) {
+      // Keep draft in sync when store gains new categories from create
+      const draftIds = new Set(draftCategories.map((c) => c.id))
+      const extras = storeCategories.filter((c) => !draftIds.has(c.id))
+      if (extras.length > 0) {
+        setDraftCategories([...draftCategories, ...extras])
+      }
+    }
+  }, [storeCategories, manageMode, draftCategories])
+
   const parents = useMemo(
     () => getRootCategories(categories).filter((c) => c.type === 'expense'),
     [categories]
   )
 
-  const [manageMode, setManageMode] = useState(false)
-  const [editingCell, setEditingCell] = useState(null)
-  const [editValue, setEditValue] = useState('')
-  const [panel, setPanel] = useState(null)
-  const [flash, setFlash] = useState(null)
-  const [draggingId, setDraggingId] = useState(null)
-  const [dropHint, setDropHint] = useState(null) // { id, position }
+  const flatRows = useMemo(
+    () => flattenVisible(categories, expandedGroups),
+    [categories, expandedGroups]
+  )
+  const flatIds = flatRows.map((r) => r.id)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  )
+
+  const activeRow = activeId ? flatRows.find((r) => r.id === activeId) : null
+
+  const draftBudgetedFor = (categoryId) => {
+    const children = categories.filter((c) => c.parentId === categoryId)
+    if (children.length > 0) {
+      return children.reduce((sum, child) => sum + draftBudgetedFor(child.id), 0)
+    }
+    return getBudgetedFor(categoryId)
+  }
+
+  const draftActivityFor = (categoryId) => {
+    const children = categories.filter((c) => c.parentId === categoryId)
+    if (children.length > 0) {
+      return children.reduce((sum, child) => sum + draftActivityFor(child.id), 0)
+    }
+    return getActivityFor(categoryId)
+  }
 
   const handleSaveBudget = async (categoryId) => {
     const amount = parseFloat(editValue) || 0
@@ -263,64 +398,59 @@ export default function BudgetAllocationTable() {
     setEditingCell(null)
   }
 
-  const handleDragStart = (e, category) => {
-    if (!manageMode) return
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', category.id)
-    setDraggingId(category.id)
+  const enterManageMode = () => {
+    setDraftCategories(storeCategories.map((c) => ({ ...c })))
+    setManageMode(true)
+    setFlash(null)
   }
 
-  const handleDragOver = (e, category, isGroup) => {
-    if (!manageMode || !draggingId || draggingId === category.id) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-
-    const rect = e.currentTarget.getBoundingClientRect()
-    const y = e.clientY - rect.top
-    const ratio = y / rect.height
-
-    let position = 'before'
-    if (isGroup && ratio > 0.28 && ratio < 0.72) {
-      position = 'into'
-    } else if (ratio > 0.5) {
-      position = 'after'
+  const handleSave = async () => {
+    if (!draftCategories) {
+      setManageMode(false)
+      return
     }
-
-    setDropHint((prev) =>
-      prev?.id === category.id && prev?.position === position
-        ? prev
-        : { id: category.id, position }
-    )
-  }
-
-  const handleDragLeave = (categoryId) => {
-    setDropHint((prev) => (prev?.id === categoryId ? null : prev))
-  }
-
-  const handleDrop = async (e, category) => {
-    e.preventDefault()
-    if (!manageMode) return
-    const dragId = e.dataTransfer.getData('text/plain') || draggingId
-    const position = dropHint?.id === category.id ? dropHint.position : 'before'
-    setDropHint(null)
-    setDraggingId(null)
-    if (!dragId || dragId === category.id) return
-
-    const result = await relocateCategory(dragId, category.id, position)
-    if (!result.success) setFlash(result.error)
-    else {
-      setFlash(null)
-      if (position === 'into') {
-        useBudgetStore.setState((state) => ({
-          expandedGroups: { ...state.expandedGroups, [category.id]: true },
-        }))
-      }
+    setSaving(true)
+    const layout = draftCategories
+      .filter((c) => c.type === 'expense')
+      .map((c) => ({
+        id: c.id,
+        parentId: c.parentId ?? null,
+        sortOrder: c.sortOrder,
+      }))
+    const result = await applyCategoryLayout(layout)
+    setSaving(false)
+    if (!result.success) {
+      setFlash(result.error)
+      return
     }
+    setDraftCategories(null)
+    setPanel(null)
+    setActiveId(null)
+    setManageMode(false)
+    setFlash(null)
+  }
+
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id)
+  }
+
+  const handleDragOver = (event) => {
+    const { active, over } = event
+    if (!over || active.id === over.id || !draftCategories) return
+
+    setDraftCategories((prev) => {
+      const rows = flattenVisible(prev, expandedGroups)
+      const ids = rows.map((r) => r.id)
+      const from = ids.indexOf(active.id)
+      const to = ids.indexOf(over.id)
+      if (from < 0 || to < 0 || from === to) return prev
+      const nextIds = arrayMove(ids, from, to)
+      return layoutFromFlatIds(nextIds, prev)
+    })
   }
 
   const handleDragEnd = () => {
-    setDraggingId(null)
-    setDropHint(null)
+    setActiveId(null)
   }
 
   const handleCreate = async (values) => {
@@ -332,13 +462,18 @@ export default function BudgetAllocationTable() {
     if (result.success) {
       setPanel(null)
       setFlash('Category added')
-      if (result.category?.parentId) {
-        useBudgetStore.setState((state) => ({
-          expandedGroups: {
-            ...state.expandedGroups,
-            [result.category.parentId]: true,
-          },
-        }))
+      if (result.category) {
+        setDraftCategories((prev) =>
+          prev ? [...prev, result.category] : [result.category]
+        )
+        if (result.category.parentId) {
+          useBudgetStore.setState((state) => ({
+            expandedGroups: {
+              ...state.expandedGroups,
+              [result.category.parentId]: true,
+            },
+          }))
+        }
       }
     }
     return result
@@ -349,6 +484,13 @@ export default function BudgetAllocationTable() {
     if (result.success) {
       setPanel(null)
       setFlash('Category updated')
+      if (result.category) {
+        setDraftCategories((prev) =>
+          prev
+            ? prev.map((c) => (c.id === result.category.id ? result.category : c))
+            : prev
+        )
+      }
     }
     return result
   }
@@ -367,20 +509,38 @@ export default function BudgetAllocationTable() {
       setFlash(result.error)
       return
     }
+    const removedId = panel.category.id
+    setDraftCategories((prev) => (prev ? prev.filter((c) => c.id !== removedId) : prev))
     setPanel(null)
     setFlash(`Removed ${panel.category.name}`)
-  }
-
-  const exitManageMode = () => {
-    setManageMode(false)
-    setPanel(null)
-    setDraggingId(null)
-    setDropHint(null)
   }
 
   const totalBudgeted = getTotalBudgeted()
   const totalActivity = getTotalActivity()
   const totalAvailable = totalBudgeted - totalActivity
+
+  const rowProps = (row) => ({
+    category: row.category,
+    depth: row.depth,
+    isGroup: row.isGroup,
+    expanded: expandedGroups[row.id] !== false,
+    onToggleExpand: toggleGroup,
+    budgeted: draftBudgetedFor(row.id),
+    activity: draftActivityFor(row.id),
+    editingCell,
+    editValue,
+    setEditingCell,
+    setEditValue,
+    onSaveBudget: handleSaveBudget,
+    manageMode,
+    onEditCategory: (cat) => setPanel({ mode: 'edit', category: cat }),
+    onAddChild: (parentId) =>
+      setPanel({
+        mode: 'add',
+        parentId,
+        category: { emoji: '📁', type: 'expense', parentId },
+      }),
+  })
 
   return (
     <div className="flex flex-col rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
@@ -389,7 +549,7 @@ export default function BudgetAllocationTable() {
       {manageMode && (
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cool-blue/30 bg-cool-blue/10 px-2 py-1.5">
           <p className="text-label-md text-on-surface">
-            Editing categories — drag the ☰ handle to reorder or drop onto a group.
+            Editing categories — drag ☰ to reorder live. Drop under a group to nest.
             Click a name to edit.
           </p>
           <div className="flex items-center gap-1">
@@ -409,10 +569,11 @@ export default function BudgetAllocationTable() {
             </button>
             <button
               type="button"
-              onClick={exitManageMode}
-              className="rounded-lg border border-border-hairline px-space-sm py-1 text-label-md text-on-surface hover:bg-surface-container"
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-lg bg-sage-accent px-space-sm py-1 text-label-md font-semibold text-on-primary disabled:opacity-50"
             >
-              Done
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>
@@ -460,14 +621,14 @@ export default function BudgetAllocationTable() {
           <span>CATEGORY</span>
           <button
             type="button"
-            onClick={() => (manageMode ? exitManageMode() : setManageMode(true))}
+            onClick={() => (manageMode ? handleSave() : enterManageMode())}
             className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
               manageMode
                 ? 'bg-cool-blue/20 text-cool-blue'
                 : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
             }`}
-            title={manageMode ? 'Done editing categories' : 'Edit categories'}
-            aria-label={manageMode ? 'Done editing categories' : 'Edit categories'}
+            title={manageMode ? 'Save category changes' : 'Edit categories'}
+            aria-label={manageMode ? 'Save category changes' : 'Edit categories'}
             aria-pressed={manageMode}
           >
             <Icon name="edit" className="text-[14px]" />
@@ -478,81 +639,39 @@ export default function BudgetAllocationTable() {
         <div className="col-span-3 text-right">AVAILABLE</div>
       </div>
 
-      <div className="flex flex-col divide-y divide-border-hairline/60">
-        {tree.length === 0 && (
-          <p className="py-space-md text-body-sm text-on-surface-variant">
-            No categories yet. Use the pencil next to Category to add some.
-          </p>
-        )}
-        {tree.map((root) => {
-          const hasChildren = isParentCategory(categories, root.id)
-          const expanded = expandedGroups[root.id] !== false
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={manageMode ? handleDragOver : undefined}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragEnd}
+      >
+        <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col">
+            {flatRows.length === 0 && (
+              <p className="py-space-md text-body-sm text-on-surface-variant">
+                No categories yet. Use the pencil next to Category to add some.
+              </p>
+            )}
+            {flatRows.map((row) => (
+              <SortableCategoryRow key={row.id} {...rowProps(row)} />
+            ))}
+          </div>
+        </SortableContext>
 
-          return (
-            <div key={root.id}>
-              <CategoryRow
-                category={root}
-                depth={0}
-                isGroup={hasChildren}
-                expanded={expanded}
-                onToggleExpand={toggleGroup}
-                budgeted={getBudgetedFor(root.id)}
-                activity={getActivityFor(root.id)}
-                editingCell={editingCell}
-                editValue={editValue}
-                setEditingCell={setEditingCell}
-                setEditValue={setEditValue}
-                onSaveBudget={handleSaveBudget}
-                manageMode={manageMode}
-                onEditCategory={(cat) => setPanel({ mode: 'edit', category: cat })}
-                onAddChild={(parentId) =>
-                  setPanel({
-                    mode: 'add',
-                    parentId,
-                    category: { emoji: '📁', type: 'expense', parentId },
-                  })
-                }
-                draggingId={draggingId}
-                dropHint={dropHint}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onDragEnd={handleDragEnd}
+        <DragOverlay dropAnimation={null}>
+          {activeRow ? (
+            <div className="min-w-[min(100%,36rem)] cursor-grabbing">
+              <CategoryRowContent
+                {...rowProps(activeRow)}
+                isOverlay
+                dragHandleProps={{}}
               />
-              {hasChildren &&
-                expanded &&
-                root.children.map((child) => (
-                  <CategoryRow
-                    key={child.id}
-                    category={child}
-                    depth={1}
-                    isGroup={false}
-                    expanded={false}
-                    onToggleExpand={toggleGroup}
-                    budgeted={getBudgetedFor(child.id)}
-                    activity={getActivityFor(child.id)}
-                    editingCell={editingCell}
-                    editValue={editValue}
-                    setEditingCell={setEditingCell}
-                    setEditValue={setEditValue}
-                    onSaveBudget={handleSaveBudget}
-                    manageMode={manageMode}
-                    onEditCategory={(cat) => setPanel({ mode: 'edit', category: cat })}
-                    onAddChild={() => {}}
-                    draggingId={draggingId}
-                    dropHint={dropHint}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onDragEnd={handleDragEnd}
-                  />
-                ))}
             </div>
-          )
-        })}
-      </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       <div className="mt-2 grid grid-cols-12 items-center border-t border-border-hairline pt-2 font-bold text-on-surface">
         <div className="col-span-5 text-body-md">TOTALS</div>
