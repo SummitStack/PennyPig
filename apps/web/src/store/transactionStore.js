@@ -5,6 +5,7 @@ import {
   getRootCategories,
   getChildCategories,
 } from '../lib/categories'
+import { getBucket, findGroupCategory } from '../lib/categoryPacks'
 
 function mapTransaction(row, accountsById, categoriesById) {
   const account = accountsById[row.account_id]
@@ -144,6 +145,93 @@ export const useTransactionStore = create((set, get) => ({
       categories: [...state.categories, mapCategory(data)],
     }))
     return { success: true, category: mapCategory(data) }
+  },
+
+  /**
+   * Install a category pack under its bucket (Fixed / Variable / Savings).
+   * Skips names that already exist. Merges into alias groups (e.g. Living ↔ Housing).
+   */
+  addCategoryPack: async (pack) => {
+    if (!pack) return { success: false, error: 'Pack required' }
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+
+    let added = 0
+    const type = pack.type || 'expense'
+    const color = pack.color || '#10b981'
+    const bucketMeta = getBucket(pack.bucket)
+
+    const findByName = (name) =>
+      get().categories.find(
+        (c) => c.name.toLowerCase() === String(name).toLowerCase()
+      )
+
+    // Ensure bucket root exists (Fixed expenses / Variable expenses / Savings Goals)
+    let bucketId = null
+    if (bucketMeta) {
+      const existingBucket = findByName(bucketMeta.name)
+      if (existingBucket) {
+        bucketId = existingBucket.id
+      } else {
+        const created = await get().createCategory({
+          name: bucketMeta.name,
+          type: 'expense',
+          emoji: bucketMeta.emoji || '📂',
+          parentId: null,
+          color,
+        })
+        if (!created.success) return created
+        bucketId = created.category.id
+        added += 1
+      }
+    }
+
+    let groupId = null
+    if (pack.attachToBucket) {
+      groupId = bucketId
+    } else {
+      const existingGroup = findGroupCategory(pack, get().categories)
+      if (existingGroup) {
+        groupId = existingGroup.id
+        // Don't reparent existing groups (avoids reshuffling the original seed)
+      } else {
+        const created = await get().createCategory({
+          name: pack.name,
+          type,
+          emoji: pack.emoji || '📂',
+          parentId: bucketId,
+          color,
+        })
+        if (!created.success) return created
+        groupId = created.category.id
+        added += 1
+      }
+    }
+
+    if (!groupId && !pack.flat) {
+      return { success: false, error: 'Could not resolve parent group', added }
+    }
+
+    for (const child of pack.categories) {
+      if (findByName(child.name)) continue
+      const result = await get().createCategory({
+        name: child.name,
+        type: child.type || type,
+        emoji: child.emoji || '📁',
+        parentId: pack.flat ? null : groupId,
+        color,
+      })
+      if (!result.success) {
+        if (String(result.error || '').toLowerCase().includes('duplicate')) {
+          await get().reloadCategories()
+          continue
+        }
+        return { success: false, error: result.error, added }
+      }
+      added += 1
+    }
+
+    await get().reloadCategories()
+    return { success: true, added, groupId, bucketId }
   },
 
   updateCategory: async (categoryId, patch) => {

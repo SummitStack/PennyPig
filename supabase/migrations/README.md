@@ -11,3 +11,8 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - `categories.parent_id` + `categories.sort_order`
 - Hierarchical default categories with emoji icons
 - Updated `ensure_user_defaults()` seeds groups/subcategories and re-homes legacy flat rows
+
+## 20260919_category_packs_defaults.sql
+- Keeps original Living / Food & Dining seed (reverted from temporary Housing seed)
+- Opt-in idea packs live in `apps/web/src/lib/categoryPacks.js` under
+  Fixed / Variable / Savings Goals buckets

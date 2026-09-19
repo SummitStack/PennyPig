@@ -5,6 +5,7 @@ import { useAccountStore } from '../store/accountStore'
 import { useTransactionStore } from '../store/transactionStore'
 import MainLayout from '../components/Layout/MainLayout'
 import BudgetAllocationTable from '../components/Budget/BudgetAllocationTable'
+import CategoryPacksPanel from '../components/Categories/CategoryPacksPanel'
 import Icon from '../components/ui/Icon'
 import { authFetch } from '../lib/authFetch'
 
@@ -20,6 +21,8 @@ function accountIcon(type) {
   return 'account_balance'
 }
 
+const PACKS_DISMISSED_KEY = 'pennypig.categoryPacks.dismissed'
+
 export default function BudgetsPage() {
   const navigate = useNavigate()
   const currentMonth = useBudgetStore((state) => state.currentMonth)
@@ -30,6 +33,13 @@ export default function BudgetsPage() {
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadData = useTransactionStore((state) => state.loadData)
   const [syncLoading, setSyncLoading] = useState(false)
+  const [showPacks, setShowPacks] = useState(() => {
+    try {
+      return localStorage.getItem(PACKS_DISMISSED_KEY) !== '1'
+    } catch {
+      return true
+    }
+  })
   const readyToAssign = getReadyToAssign()
 
   const monthName = new Date(`${currentMonth}-01`).toLocaleDateString('en-US', {
@@ -41,6 +51,15 @@ export default function BudgetsPage() {
     const next = shiftMonth(currentMonth, delta)
     setCurrentMonth(next)
     await loadBudgets(next)
+  }
+
+  const dismissPacks = () => {
+    setShowPacks(false)
+    try {
+      localStorage.setItem(PACKS_DISMISSED_KEY, '1')
+    } catch {
+      /* ignore */
+    }
   }
 
   const handleSync = async () => {
@@ -63,10 +82,16 @@ export default function BudgetsPage() {
     }
   }
 
+  const openCustomCategories = () => {
+    dismissPacks()
+    const el = document.getElementById('budget-allocation')
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <MainLayout>
       <div className="mb-space-md flex flex-col justify-between gap-space-sm md:flex-row md:items-center">
-        <div className="flex items-center gap-space-sm">
+        <div className="flex flex-wrap items-center gap-space-sm">
           <div className="flex items-center rounded-lg border border-border-hairline bg-surface-container-high p-0.5">
             <button
               type="button"
@@ -88,10 +113,14 @@ export default function BudgetsPage() {
               <Icon name="chevron_right" className="text-[18px]" />
             </button>
           </div>
-          <div className="hidden items-center gap-space-xs rounded-lg border border-border-hairline bg-surface-container-high/50 px-2 py-1 text-label-sm text-on-surface-variant sm:flex">
-            <Icon name="verified" className="text-[14px] text-sage-accent" />
-            <span>Budget vs activity</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowPacks((v) => !v)}
+            className="inline-flex items-center gap-1 rounded-lg border border-border-hairline bg-surface-container-high px-2 py-1.5 text-label-md font-semibold text-on-surface hover:bg-surface-base"
+          >
+            <Icon name="playlist_add" className="text-[16px]" />
+            {showPacks ? 'Hide category ideas' : 'Category ideas'}
+          </button>
         </div>
 
         <div className="flex items-center justify-between gap-space-md rounded-lg border border-sage-accent/30 bg-sage-accent/10 px-space-md py-2 md:justify-end">
@@ -109,7 +138,19 @@ export default function BudgetsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-space-md lg:grid-cols-12">
+      {showPacks && (
+        <div className="mb-space-md">
+          <CategoryPacksPanel
+            onCustom={openCustomCategories}
+            onClose={dismissPacks}
+          />
+        </div>
+      )}
+
+      <div
+        id="budget-allocation"
+        className="grid grid-cols-1 items-start gap-space-md lg:grid-cols-12"
+      >
         <div className="lg:col-span-8">
           <BudgetAllocationTable />
         </div>
