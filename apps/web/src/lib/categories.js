@@ -206,6 +206,8 @@ export function mapCategory(row) {
     parentId: row.parent_id || null,
     custom: Boolean(row.custom),
     sortOrder: row.sort_order ?? 0,
+    isCcPayment: Boolean(row.is_cc_payment),
+    linkedAccountId: row.linked_account_id || null,
   }
 }
 

@@ -3,9 +3,11 @@ import { useAccountStore } from '../../store/accountStore'
 import { useTransactionStore } from '../../store/transactionStore'
 import { useBudgetStore } from '../../store/budgetStore'
 import { authFetch } from '../../lib/authFetch'
+import ReconcileModal from './ReconcileModal'
 
 export default function AccountCard({ account }) {
   const [syncing, setSyncing] = useState(false)
+  const [showReconcile, setShowReconcile] = useState(false)
   const removeAccount = useAccountStore((state) => state.removeAccount)
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadData = useTransactionStore((state) => state.loadData)
@@ -47,7 +49,14 @@ export default function AccountCard({ account }) {
     <div className="rounded-xl border border-border-hairline bg-surface-base p-space-lg shadow-sm transition-colors hover:border-primary">
       <div className="mb-space-md flex items-start justify-between">
         <div>
-          <h3 className="text-headline-sm font-bold text-on-surface">{account.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-headline-sm font-bold text-on-surface">{account.name}</h3>
+            {account.isManual && (
+              <span className="rounded bg-cool-blue/10 px-2 py-0.5 text-label-sm font-medium text-cool-blue">
+                Manual
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-label-md text-on-surface-variant">{account.institution}</p>
         </div>
         <span className="rounded bg-status-success/10 px-3 py-1 text-label-md text-status-success">
@@ -72,19 +81,27 @@ export default function AccountCard({ account }) {
         </div>
       </div>
 
-      {lastSyncTime !== null && (
+      {lastSyncTime !== null && !account.isManual && (
         <p className="mb-space-md text-label-md text-on-surface-variant">
           Last synced {lastSyncTime} minutes ago
         </p>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
+        {!account.isManual && (
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex-1 rounded-lg bg-primary px-3 py-2 text-body-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {syncing ? 'Syncing...' : 'Sync'}
+          </button>
+        )}
         <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="flex-1 rounded-lg bg-primary px-3 py-2 text-body-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+          onClick={() => setShowReconcile(true)}
+          className="flex-1 rounded-lg border border-sage-accent/40 bg-sage-accent/10 px-3 py-2 text-body-sm font-medium text-sage-accent transition-colors hover:bg-sage-accent/20"
         >
-          {syncing ? 'Syncing...' : 'Sync'}
+          Reconcile
         </button>
         <button
           onClick={handleRemove}
@@ -93,6 +110,13 @@ export default function AccountCard({ account }) {
           Remove
         </button>
       </div>
+
+      {showReconcile && (
+        <ReconcileModal
+          account={account}
+          onClose={() => setShowReconcile(false)}
+        />
+      )}
     </div>
   )
 }

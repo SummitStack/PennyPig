@@ -71,13 +71,18 @@ export async function syncTransactionsForAccounts(
       .map((a) => [a.plaid_account_id as string, a.id])
   )
 
-  const [{ data: categories }, { data: renameRules }] = await Promise.all([
-    supabase.from('categories').select('id, name').eq('user_id', userId),
-    supabase
-      .from('payee_rename_rules')
-      .select('match_key, rename_to')
-      .eq('user_id', userId),
-  ])
+  const [{ data: categories }, { data: renameRules }, { data: categoryRules }] =
+    await Promise.all([
+      supabase.from('categories').select('id, name').eq('user_id', userId),
+      supabase
+        .from('payee_rename_rules')
+        .select('match_key, rename_to')
+        .eq('user_id', userId),
+      supabase
+        .from('payee_category_rules')
+        .select('match_key, category_id')
+        .eq('user_id', userId),
+    ])
 
   const categoryByName = new Map(
     (categories || []).map((c: { id: string; name: string }) => [
@@ -93,6 +98,15 @@ export async function syncTransactionsForAccounts(
     ])
   )
 
+  const categoryRuleByKey = new Map(
+    (categoryRules || []).map(
+      (r: { match_key: string; category_id: string }) => [
+        r.match_key,
+        r.category_id,
+      ]
+    )
+  )
+
   const incoming = (data.transactions || [])
     .map((txn: any) => {
       const accountId = accountMap.get(txn.account_id)
@@ -103,7 +117,7 @@ export async function syncTransactionsForAccounts(
         .split('_')
         .map((part: string) => part.charAt(0) + part.slice(1).toLowerCase())
         .join(' ')
-      const suggestedCategoryId =
+      const plaidSuggested =
         categoryByName.get(pretty.toLowerCase()) ||
         categoryByName.get('shopping') ||
         null
@@ -112,13 +126,17 @@ export async function syncTransactionsForAccounts(
       const matchKey = normalizePayeeKey(merchant)
       const payee = renameByKey.get(matchKey) || merchant
       const pending = Boolean(txn.pending)
+      // Plaid: positive = money leaving account (outflow). Keep signed.
+      const signed = Number(txn.amount) || 0
+      const suggestedCategoryId =
+        categoryRuleByKey.get(matchKey) || plaidSuggested
 
       return {
         user_id: userId,
         account_id: accountId,
         plaid_transaction_id: txn.transaction_id,
         date: txn.date,
-        amount: Math.abs(Number(txn.amount) || 0),
+        amount: signed,
         merchant,
         payee,
         category_id: suggestedCategoryId,
