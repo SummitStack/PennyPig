@@ -4,8 +4,63 @@ import {
   mapCategory,
   getRootCategories,
   getChildCategories,
+  isBudgetParent,
+  getCategoryRole,
 } from '../lib/categories'
-import { getBucket, findGroupCategory } from '../lib/categoryPacks'
+
+function findCategory(categories, categoryId) {
+  return categories.find((c) => c.id === categoryId)
+}
+
+function rejectIfSystemParent(categories, categoryId) {
+  const cat = findCategory(categories, categoryId)
+  if (cat && isBudgetParent(cat)) {
+    return 'System budget parents cannot be changed or removed.'
+  }
+  return null
+}
+
+function validateCreateCategory(categories, { type, parentId, role }) {
+  if (type === 'income') {
+    if (parentId) return 'Income categories must be top-level.'
+    return null
+  }
+  if (type !== 'expense') return null
+
+  if (!parentId) {
+    return 'Expense categories must belong to a parent group or budget parent.'
+  }
+
+  const parent = findCategory(categories, parentId)
+  if (!parent) return 'Parent category not found.'
+
+  const intendedRole = role || (isBudgetParent(parent) ? 'group' : 'category')
+
+  if (intendedRole === 'group') {
+    if (!isBudgetParent(parent)) {
+      return 'Groups must be created under Needs, Wants, Savings Goals, or Other.'
+    }
+    if (parent.name === 'Savings Goals') {
+      return 'Add savings categories directly under Savings Goals instead of a group.'
+    }
+    return null
+  }
+
+  if (intendedRole === 'category') {
+    if (isBudgetParent(parent)) {
+      if (parent.name !== 'Savings Goals') {
+        return 'Categories must be created under a group, not a budget parent.'
+      }
+      return null
+    }
+    if (getCategoryRole(categories, parent) !== 'group') {
+      return 'Categories must be created under a group.'
+    }
+    return null
+  }
+
+  return null
+}
 
 function mapTransaction(row, accountsById, categoriesById) {
   const account = accountsById[row.account_id]
@@ -113,12 +168,26 @@ export const useTransactionStore = create((set, get) => ({
     set({ categories: (data || []).map(mapCategory) })
   },
 
-  createCategory: async ({ name, type = 'expense', emoji = '📁', parentId = null, color = '#10b981' }) => {
+  createCategory: async ({
+    name,
+    type = 'expense',
+    emoji = '📁',
+    parentId = null,
+    color = '#10b981',
+    role,
+  }) => {
     if (!supabase) return { success: false, error: 'Supabase not configured' }
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not signed in' }
+
+    const validationError = validateCreateCategory(get().categories, {
+      type,
+      parentId,
+      role,
+    })
+    if (validationError) return { success: false, error: validationError }
 
     const siblings = get()
       .categories.filter((c) => (c.parentId || null) === (parentId || null))
@@ -147,95 +216,21 @@ export const useTransactionStore = create((set, get) => ({
     return { success: true, category: mapCategory(data) }
   },
 
-  /**
-   * Install a category pack under its bucket (Fixed / Variable / Savings).
-   * Skips names that already exist. Merges into alias groups (e.g. Living ↔ Housing).
-   */
-  addCategoryPack: async (pack) => {
-    if (!pack) return { success: false, error: 'Pack required' }
-    if (!supabase) return { success: false, error: 'Supabase not configured' }
-
-    let added = 0
-    const type = pack.type || 'expense'
-    const color = pack.color || '#10b981'
-    const bucketMeta = getBucket(pack.bucket)
-
-    const findByName = (name) =>
-      get().categories.find(
-        (c) => c.name.toLowerCase() === String(name).toLowerCase()
-      )
-
-    // Ensure bucket root exists (Fixed expenses / Variable expenses / Savings Goals)
-    let bucketId = null
-    if (bucketMeta) {
-      const existingBucket = findByName(bucketMeta.name)
-      if (existingBucket) {
-        bucketId = existingBucket.id
-      } else {
-        const created = await get().createCategory({
-          name: bucketMeta.name,
-          type: 'expense',
-          emoji: bucketMeta.emoji || '📂',
-          parentId: null,
-          color,
-        })
-        if (!created.success) return created
-        bucketId = created.category.id
-        added += 1
-      }
-    }
-
-    let groupId = null
-    if (pack.attachToBucket) {
-      groupId = bucketId
-    } else {
-      const existingGroup = findGroupCategory(pack, get().categories)
-      if (existingGroup) {
-        groupId = existingGroup.id
-        // Don't reparent existing groups (avoids reshuffling the original seed)
-      } else {
-        const created = await get().createCategory({
-          name: pack.name,
-          type,
-          emoji: pack.emoji || '📂',
-          parentId: bucketId,
-          color,
-        })
-        if (!created.success) return created
-        groupId = created.category.id
-        added += 1
-      }
-    }
-
-    if (!groupId && !pack.flat) {
-      return { success: false, error: 'Could not resolve parent group', added }
-    }
-
-    for (const child of pack.categories) {
-      if (findByName(child.name)) continue
-      const result = await get().createCategory({
-        name: child.name,
-        type: child.type || type,
-        emoji: child.emoji || '📁',
-        parentId: pack.flat ? null : groupId,
-        color,
-      })
-      if (!result.success) {
-        if (String(result.error || '').toLowerCase().includes('duplicate')) {
-          await get().reloadCategories()
-          continue
-        }
-        return { success: false, error: result.error, added }
-      }
-      added += 1
-    }
-
-    await get().reloadCategories()
-    return { success: true, added, groupId, bucketId }
-  },
-
   updateCategory: async (categoryId, patch) => {
     if (!supabase) return { success: false, error: 'Supabase not configured' }
+
+    const blocked = rejectIfSystemParent(get().categories, categoryId)
+    if (blocked) return { success: false, error: blocked }
+
+    if (patch.parentId !== undefined) {
+      const cat = findCategory(get().categories, categoryId)
+      const validationError = validateCreateCategory(get().categories, {
+        type: cat?.type || 'expense',
+        parentId: patch.parentId,
+        role: getCategoryRole(get().categories, cat),
+      })
+      if (validationError) return { success: false, error: validationError }
+    }
 
     const payload = {}
     if (patch.name !== undefined) payload.name = patch.name.trim()
@@ -265,6 +260,9 @@ export const useTransactionStore = create((set, get) => ({
   deleteCategory: async (categoryId) => {
     if (!supabase) return { success: false, error: 'Supabase not configured' }
 
+    const blocked = rejectIfSystemParent(get().categories, categoryId)
+    if (blocked) return { success: false, error: blocked }
+
     const children = get().categories.filter((c) => c.parentId === categoryId)
     if (children.length > 0) {
       return {
@@ -290,6 +288,9 @@ export const useTransactionStore = create((set, get) => ({
     const categories = get().categories
     const cat = categories.find((c) => c.id === categoryId)
     if (!cat) return { success: false, error: 'Category not found' }
+    if (isBudgetParent(cat)) {
+      return { success: false, error: 'System budget parents cannot be reordered.' }
+    }
     if (direction !== 'up' && direction !== 'down') {
       return { success: false, error: 'Invalid direction' }
     }
@@ -397,6 +398,12 @@ export const useTransactionStore = create((set, get) => ({
     const target = categories.find((c) => c.id === targetId)
     if (!drag || !target) return { success: false, error: 'Category not found' }
     if (dragId === targetId) return { success: true }
+    if (isBudgetParent(drag)) {
+      return { success: false, error: 'System budget parents cannot be moved.' }
+    }
+    if (isBudgetParent(target) && position === 'into') {
+      return { success: false, error: 'Cannot nest items inside a budget parent.' }
+    }
 
     // Prevent dropping a group into itself or its descendants
     const isDescendant = (ancestorId, nodeId) => {
@@ -486,10 +493,28 @@ export const useTransactionStore = create((set, get) => ({
       return { success: true }
     }
 
+    const categories = get().categories
+    for (const u of layout) {
+      const existing = findCategory(categories, u.id)
+      if (!existing) continue
+      if (isBudgetParent(existing)) {
+        if (u.parentId != null && u.parentId !== existing.parentId) {
+          return { success: false, error: 'System budget parents cannot be moved.' }
+        }
+        continue
+      }
+      const validationError = validateCreateCategory(categories, {
+        type: existing.type,
+        parentId: u.parentId ?? null,
+        role: getCategoryRole(categories, existing),
+      })
+      if (validationError) return { success: false, error: validationError }
+    }
+
     set((state) => ({
       categories: state.categories.map((c) => {
         const hit = layout.find((u) => u.id === c.id)
-        if (!hit) return c
+        if (!hit || isBudgetParent(c)) return c
         return {
           ...c,
           parentId: hit.parentId ?? null,
@@ -501,6 +526,8 @@ export const useTransactionStore = create((set, get) => ({
     if (!supabase) return { success: true }
 
     for (const u of layout) {
+      const existing = findCategory(get().categories, u.id)
+      if (existing && isBudgetParent(existing)) continue
       const { error } = await supabase
         .from('categories')
         .update({
