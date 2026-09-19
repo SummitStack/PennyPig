@@ -58,13 +58,27 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   date date NOT NULL,
   amount numeric(15,2) NOT NULL,
   merchant text,
+  payee text,
+  memo text,
   category_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
   description text,
   status text DEFAULT 'posted' CHECK (status = ANY (ARRAY['posted','pending','hold'])),
+  cleared boolean NOT NULL DEFAULT true,
   user_hold boolean DEFAULT false,
   last_sync_check timestamptz,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.payee_rename_rules (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  match_key text NOT NULL,
+  match_merchant text NOT NULL,
+  rename_to text NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE (user_id, match_key)
 );
 
 CREATE TABLE IF NOT EXISTS public.budgets (
@@ -86,6 +100,7 @@ ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payee_rename_rules ENABLE ROW LEVEL SECURITY;
 
 -- Column privileges: authenticated may SELECT plaid_items metadata but NOT access_token.
 -- Tokens are read only via SECURITY DEFINER RPC get_plaid_access_token(uuid).
