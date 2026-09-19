@@ -296,7 +296,7 @@ export const useTransactionStore = create((set, get) => ({
             .from('transactions')
             .select('*')
             .order('date', { ascending: false })
-            .limit(500),
+            .limit(5000),
           supabase.from('payee_rename_rules').select('*').order('rename_to'),
           supabase.from('transaction_splits').select('*'),
           supabase.from('payee_category_rules').select('*'),

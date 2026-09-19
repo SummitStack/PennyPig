@@ -8,6 +8,7 @@ import Transactions from './routes/Transactions'
 import Budgets from './routes/Budgets'
 import Accounts from './routes/Accounts'
 import Settings from './routes/Settings'
+import Reports from './routes/Reports'
 import Login from './routes/Login'
 import Signup from './routes/Signup'
 
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
         <Route path="/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
         <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
