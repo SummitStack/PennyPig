@@ -299,6 +299,98 @@ export const useTransactionStore = create((set, get) => ({
     ])
   },
 
+  /**
+   * Drag-and-drop relocate: place category before/after a target, or into a group.
+   * position: 'before' | 'after' | 'into'
+   */
+  relocateCategory: async (dragId, targetId, position = 'before') => {
+    const categories = get().categories
+    const drag = categories.find((c) => c.id === dragId)
+    const target = categories.find((c) => c.id === targetId)
+    if (!drag || !target) return { success: false, error: 'Category not found' }
+    if (dragId === targetId) return { success: true }
+
+    // Prevent dropping a group into itself or its descendants
+    const isDescendant = (ancestorId, nodeId) => {
+      let cur = categories.find((c) => c.id === nodeId)
+      while (cur?.parentId) {
+        if (cur.parentId === ancestorId) return true
+        cur = categories.find((c) => c.id === cur.parentId)
+      }
+      return false
+    }
+    if (position === 'into' && (dragId === targetId || isDescendant(dragId, targetId))) {
+      return { success: false, error: 'Cannot move a group into itself' }
+    }
+
+    let newParentId = null
+    if (position === 'into') {
+      newParentId = target.id
+    } else {
+      newParentId = target.parentId || null
+    }
+
+    // Groups with children should stay top-level when reordering among roots
+    const dragHasChildren = categories.some((c) => c.parentId === dragId)
+    if (dragHasChildren && newParentId) {
+      return { success: false, error: 'Move subcategories out before nesting this group.' }
+    }
+
+    const siblings = categories
+      .filter(
+        (c) =>
+          c.id !== dragId &&
+          (c.parentId || null) === (newParentId || null) &&
+          c.type === drag.type
+      )
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+
+    let insertAt = siblings.length
+    if (position === 'into') {
+      insertAt = siblings.length
+    } else {
+      const targetIdx = siblings.findIndex((c) => c.id === targetId)
+      if (targetIdx >= 0) {
+        insertAt = position === 'before' ? targetIdx : targetIdx + 1
+      }
+    }
+
+    const ordered = [...siblings]
+    ordered.splice(insertAt, 0, { ...drag, parentId: newParentId })
+
+    // Assign sequential sort orders (leave gaps by 10 for stability)
+    const updates = ordered.map((c, i) => ({
+      id: c.id,
+      parentId: newParentId,
+      sortOrder: (i + 1) * 10,
+    }))
+
+    set((state) => ({
+      categories: state.categories.map((c) => {
+        const hit = updates.find((u) => u.id === c.id)
+        if (!hit) return c
+        return { ...c, parentId: hit.parentId, sortOrder: hit.sortOrder }
+      }),
+    }))
+
+    if (!supabase) return { success: true }
+
+    for (const u of updates) {
+      const { error } = await supabase
+        .from('categories')
+        .update({
+          parent_id: u.parentId,
+          sort_order: u.sortOrder,
+        })
+        .eq('id', u.id)
+      if (error) {
+        await get().reloadCategories()
+        return { success: false, error: error.message }
+      }
+    }
+    return { success: true }
+  },
+
   categorizeTransaction: async (transactionId, categoryId) => {
     const category = categoryId
       ? get().categories.find((c) => c.id === categoryId)

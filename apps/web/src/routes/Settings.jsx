@@ -19,8 +19,8 @@ export default function SettingsPage() {
               <Link to="/budgets" className="font-semibold text-primary hover:underline">
                 Budget &amp; Allocation
               </Link>
-              . Use the pencil on a row to edit, or the hamburger control to move
-              categories up and down — including between groups.
+              . Use the pencil next to the Category heading to unlock editing, then
+              drag the ☰ handle to reorder or move between groups.
             </p>
           </SettingsSection>
 
