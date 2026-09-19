@@ -82,7 +82,37 @@ BEGIN
         icon = COALESCE(NULLIF(public.categories.icon, ''), EXCLUDED.icon),
         sort_order = EXCLUDED.sort_order;
 
-  -- Re-parent legacy flat names
+  -- Fold legacy flat "Rent" into "Rent & Housing" when unused
+  UPDATE public.transactions t
+  SET category_id = rh.id
+  FROM public.categories rent
+  JOIN public.categories rh
+    ON rh.user_id = rent.user_id AND rh.name = 'Rent & Housing'
+  WHERE rent.user_id = uid
+    AND rent.name = 'Rent'
+    AND t.category_id = rent.id;
+
+  UPDATE public.budgets b
+  SET category_id = rh.id
+  FROM public.categories rent
+  JOIN public.categories rh
+    ON rh.user_id = rent.user_id AND rh.name = 'Rent & Housing'
+  WHERE rent.user_id = uid
+    AND rent.name = 'Rent'
+    AND b.category_id = rent.id
+    AND NOT EXISTS (
+      SELECT 1 FROM public.budgets b2
+      WHERE b2.user_id = uid
+        AND b2.category_id = rh.id
+        AND b2.month_year = b.month_year
+    );
+
+  DELETE FROM public.categories
+  WHERE user_id = uid
+    AND name = 'Rent'
+    AND NOT EXISTS (SELECT 1 FROM public.transactions t WHERE t.category_id = categories.id)
+    AND NOT EXISTS (SELECT 1 FROM public.budgets b WHERE b.category_id = categories.id);
+
   UPDATE public.categories
     SET parent_id = living_id,
         icon = COALESCE(NULLIF(icon, ''), '🏡'),
