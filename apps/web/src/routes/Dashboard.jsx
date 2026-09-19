@@ -1,194 +1,352 @@
 import { useNavigate } from 'react-router-dom'
 import { useBudgetStore } from '../store/budgetStore'
 import { useAccountStore } from '../store/accountStore'
+import { useTransactionStore } from '../store/transactionStore'
 import MainLayout from '../components/Layout/MainLayout'
+import Icon from '../components/ui/Icon'
+
+const CATEGORY_ICONS = {
+  Rent: 'home',
+  Living: 'home',
+  Dining: 'restaurant',
+  'Food & Dining': 'restaurant',
+  Groceries: 'shopping_cart',
+  Transportation: 'directions_car',
+  Gas: 'local_gas_station',
+  Subscriptions: 'subscriptions',
+  Entertainment: 'movie',
+  Shopping: 'shopping_bag',
+  Coffee: 'coffee',
+  Salary: 'payments',
+}
+
+function accountIcon(type) {
+  if (type === 'credit') return 'credit_card'
+  if (type === 'savings') return 'savings'
+  return 'wallet'
+}
+
+function formatMoney(n) {
+  return `$${Number(n || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`
+}
+
+function formatMoneyExact(n) {
+  return `$${Number(n || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const accounts = useAccountStore((state) => state.linkedAccounts)
+  const transactions = useTransactionStore((state) => state.transactions)
+  const categories = useTransactionStore((state) => state.categories)
   const {
     budgets,
     currentMonth,
-    getCategoryStatus,
+    getSpending,
     getTotalSpent,
     getTotalBudgeted,
+    getReadyToAssign,
   } = useBudgetStore()
-  const categories = Object.keys(budgets[currentMonth] || {})
 
-  const netWorth = accounts.reduce((sum, acc) => {
-    const balance = Number(acc.balance) || 0
-    return acc.type === 'credit' ? sum - Math.abs(balance) : sum + balance
+  const spending = getSpending(currentMonth)
+  const budgetMap = budgets[currentMonth] || {}
+  const expenseCats = categories.filter((c) => c.type === 'expense')
+  const incomeNames = new Set(categories.filter((c) => c.type === 'income').map((c) => c.name))
+
+  const moneyIn = transactions.reduce((sum, txn) => {
+    const d = new Date(txn.date)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    if (key !== currentMonth) return sum
+    if (incomeNames.has(txn.category)) return sum + Number(txn.amount || 0)
+    return sum
   }, 0)
 
-  const totalSpent = getTotalSpent()
+  const moneyOut = getTotalSpent()
+  const readyToAssign = getReadyToAssign()
   const totalBudgeted = getTotalBudgeted()
-  const totalRemaining = totalBudgeted - totalSpent
-  const budgetHealth = totalBudgeted > 0 ? Math.round((totalSpent / totalBudgeted) * 100) : 0
 
-  const overBudget = categories.filter((cat) => getCategoryStatus(cat).status === 'over').length
-  const underBudget = categories.filter((cat) => getCategoryStatus(cat).status === 'under').length
+  const now = new Date()
+  const day = now.getDate()
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const budgetUsedPct =
+    totalBudgeted > 0 ? Math.min(100, Math.round((moneyOut / totalBudgeted) * 100)) : 0
 
-  const monthLabel = new Date(`${currentMonth}-01`).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
+  const latestSync = accounts
+    .map((a) => a.lastSynced)
+    .filter(Boolean)
+    .map((d) => new Date(d).getTime())
+  const syncedLabel =
+    latestSync.length > 0
+      ? new Date(Math.max(...latestSync)).toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : 'Not synced yet'
+
+  const categoryRows = expenseCats
+    .map((cat) => {
+      const budgeted = Number(budgetMap[cat.name] || 0)
+      const activity = Number(spending[cat.name] || 0)
+      if (budgeted === 0 && activity === 0) return null
+      const pct = budgeted > 0 ? Math.round((activity / budgeted) * 100) : activity > 0 ? 100 : 0
+      return { name: cat.name, budgeted, activity, pct }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.activity - a.activity)
+    .slice(0, 5)
+
+  const statusColor = (pct) => {
+    if (pct >= 100) return 'text-status-error'
+    if (pct >= 80) return 'text-status-warning'
+    return 'text-status-success'
+  }
+
+  const barColor = (pct) => {
+    if (pct >= 100) return 'bg-status-error'
+    if (pct >= 80) return 'bg-status-warning'
+    return 'bg-status-success'
+  }
 
   return (
     <MainLayout>
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-headline-lg font-bold text-on-surface">Dashboard</h1>
-          <p className="text-body-md text-on-surface-variant mt-2">{monthLabel}</p>
+      <div className="flex flex-col gap-space-xl">
+        <div className="grid grid-cols-1 gap-space-lg sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-base p-space-lg shadow-sm">
+            <div className="mb-space-md flex items-center justify-between">
+              <span className="text-label-md uppercase tracking-wider text-on-surface-variant">
+                Money In (This Month)
+              </span>
+              <Icon name="trending_up" className="text-[20px] text-primary" />
+            </div>
+            <div className="text-headline-lg font-bold text-on-surface">
+              {formatMoney(moneyIn)}
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-base p-space-lg shadow-sm">
+            <div className="mb-space-md flex items-center justify-between">
+              <span className="text-label-md uppercase tracking-wider text-on-surface-variant">
+                Money Out
+              </span>
+              <Icon name="trending_down" className="text-[20px] text-on-surface-variant" />
+            </div>
+            <div className="text-headline-lg font-bold text-on-surface">
+              {formatMoney(moneyOut)}
+            </div>
+          </div>
+
+          <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-primary/30 bg-primary/10 p-space-lg shadow-sm">
+            <div className="pointer-events-none absolute right-0 top-0 -mr-10 -mt-10 h-32 w-32 rounded-full bg-primary/20 blur-2xl" />
+            <div className="mb-space-md flex items-center justify-between">
+              <span className="text-label-md font-semibold uppercase tracking-wider text-primary">
+                Ready to Assign
+              </span>
+              <Icon name="account_balance_wallet" className="text-[20px] text-primary" />
+            </div>
+            <div>
+              <div className="mb-space-xs text-headline-lg font-bold text-primary">
+                {formatMoneyExact(readyToAssign)}
+              </div>
+              <div className="text-body-sm font-medium text-on-surface-variant">
+                Income minus budgeted
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-base p-space-lg shadow-sm">
+            <div className="mb-space-md flex items-center justify-between">
+              <span className="text-label-md uppercase tracking-wider text-on-surface-variant">
+                System Status
+              </span>
+              <Icon
+                name={latestSync.length > 0 ? 'check_circle' : 'schedule'}
+                className={`text-[20px] ${
+                  latestSync.length > 0 ? 'text-status-success' : 'text-on-surface-variant'
+                }`}
+              />
+            </div>
+            <div>
+              <div className="mb-space-xs text-headline-sm font-bold text-on-surface">
+                {latestSync.length > 0 ? 'Synced' : 'Idle'}
+              </div>
+              <div className="text-body-sm text-on-surface-variant">{syncedLabel}</div>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-gradient-to-r from-primary to-primary bg-opacity-10 rounded-lg p-8 border border-primary border-opacity-20">
-          <p className="text-label-md text-on-surface-variant uppercase tracking-wide">
-            Total Net Worth
-          </p>
-          <p className="text-5xl font-bold text-primary mt-2">${netWorth.toFixed(2)}</p>
-          <p className="text-body-sm text-on-surface-variant mt-3">
-            Assets minus credit balances
-          </p>
-        </div>
-
-        <div>
-          <h2 className="text-headline-sm font-bold text-on-surface mb-4">Account Balances</h2>
-          {accounts.length === 0 ? (
-            <p className="text-body-md text-on-surface-variant">
-              No accounts yet. Connect one from the Accounts page.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {accounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="bg-surface-container rounded-lg p-6 border border-border-hairline hover:border-primary transition-colors"
-                >
-                  <p className="text-label-md text-on-surface-variant">{account.name}</p>
-                  <p className="text-headline-md font-bold text-on-surface mt-2">
-                    ${Number(account.balance).toFixed(2)}
-                  </p>
-                  <p className="text-body-sm text-on-surface-variant mt-1 capitalize">
-                    {account.type}
+        <div className="grid grid-cols-1 gap-space-xl lg:grid-cols-3">
+          <div className="flex flex-col gap-space-xl lg:col-span-2">
+            <div className="flex flex-col gap-space-lg rounded-xl border border-outline-variant bg-surface-base p-space-xl shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-headline-md font-bold text-on-surface">
+                    Spending by Category
+                  </h2>
+                  <p className="text-body-sm text-on-surface-variant">
+                    Top active budgets for this month
                   </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <Icon name="category" className="text-on-surface-variant" />
+              </div>
 
-        <div>
-          <h2 className="text-headline-sm font-bold text-on-surface mb-4">Budget Health</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
-              <p className="text-label-md text-on-surface-variant">Overall Health</p>
-              <p className="text-headline-md font-bold mt-2">
-                <span
-                  className={
-                    budgetHealth > 100
-                      ? 'text-status-error'
-                      : budgetHealth > 80
-                        ? 'text-status-warning'
-                        : 'text-status-success'
-                  }
-                >
-                  {budgetHealth}%
-                </span>
-              </p>
-            </div>
-            <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
-              <p className="text-label-md text-on-surface-variant">Budgeted</p>
-              <p className="text-headline-md font-bold text-on-surface mt-2">
-                ${totalBudgeted.toFixed(2)}
-              </p>
-            </div>
-            <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
-              <p className="text-label-md text-on-surface-variant">Spent</p>
-              <p className="text-headline-md font-bold text-on-surface mt-2">
-                ${totalSpent.toFixed(2)}
-              </p>
-            </div>
-            <div
-              className={`rounded-lg p-6 border ${
-                totalRemaining >= 0
-                  ? 'bg-status-success bg-opacity-10 border-status-success'
-                  : 'bg-status-error bg-opacity-10 border-status-error'
-              }`}
-            >
-              <p className="text-label-md text-on-surface-variant">Remaining</p>
-              <p
-                className={`text-headline-md font-bold mt-2 ${
-                  totalRemaining >= 0 ? 'text-status-success' : 'text-status-error'
-                }`}
-              >
-                ${totalRemaining.toFixed(2)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-headline-sm font-bold text-on-surface mb-4">Category Status</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
-              <div className="flex justify-between items-center mb-4">
-                <p className="text-headline-sm font-bold text-on-surface">On Track</p>
-                <span className="text-headline-md font-bold text-status-success">{underBudget}</span>
-              </div>
-              <div className="space-y-2">
-                {categories
-                  .filter((cat) => getCategoryStatus(cat).status === 'under')
-                  .slice(0, 5)
-                  .map((cat) => (
-                    <div key={cat} className="flex justify-between text-body-sm">
-                      <span className="text-on-surface">{cat}</span>
-                      <span className="text-status-success">✓</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-            <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
-              <div className="flex justify-between items-center mb-4">
-                <p className="text-headline-sm font-bold text-on-surface">Over Budget</p>
-                <span
-                  className={`text-headline-md font-bold ${
-                    overBudget > 0 ? 'text-status-error' : 'text-status-success'
-                  }`}
-                >
-                  {overBudget}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {categories
-                  .filter((cat) => getCategoryStatus(cat).status === 'over')
-                  .slice(0, 5)
-                  .map((cat) => (
-                    <div key={cat} className="flex justify-between text-body-sm">
-                      <span className="text-on-surface">{cat}</span>
-                      <span className="text-status-error">!</span>
-                    </div>
-                  ))}
-                {overBudget === 0 && (
-                  <p className="text-body-sm text-on-surface-variant">All categories in budget</p>
+              <div className="flex flex-col gap-space-md">
+                {categoryRows.length === 0 && (
+                  <p className="text-body-md text-on-surface-variant">
+                    No spending yet this month. Sync accounts or record a transaction.
+                  </p>
                 )}
+                {categoryRows.map((row, idx) => (
+                  <div
+                    key={row.name}
+                    className={`flex flex-col gap-space-xs ${
+                      idx < categoryRows.length - 1
+                        ? 'border-b border-outline-variant pb-space-md'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-body-md">
+                      <div className="flex items-center gap-space-sm font-medium text-on-surface">
+                        <Icon
+                          name={CATEGORY_ICONS[row.name] || 'label'}
+                          className="text-[18px] text-primary"
+                        />
+                        {row.name}
+                      </div>
+                      <div className="text-body-sm font-medium text-on-surface-variant">
+                        {formatMoney(row.activity)} / {formatMoney(row.budgeted)}{' '}
+                        <span className={`ml-space-xs font-semibold ${statusColor(row.pct)}`}>
+                          ({row.pct}%)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container">
+                      <div
+                        className={`h-full rounded-full ${barColor(row.pct)}`}
+                        style={{ width: `${Math.min(row.pct, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end pt-space-sm">
+                <button
+                  type="button"
+                  onClick={() => navigate('/budgets')}
+                  className="flex items-center gap-space-xs text-body-md font-medium text-primary hover:underline"
+                >
+                  View all categories
+                  <Icon name="arrow_forward" className="text-[16px]" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-space-md">
+              <button
+                type="button"
+                onClick={() => navigate('/budgets')}
+                className="flex items-center gap-space-sm rounded-lg bg-primary px-space-lg py-space-md text-body-md font-medium text-on-primary shadow-sm transition-colors hover:bg-primary/90"
+              >
+                <Icon name="add_card" className="text-[18px]" />
+                Assign Money
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/transactions')}
+                className="flex items-center gap-space-sm rounded-lg border border-outline-variant bg-surface-base px-space-lg py-space-md text-body-md font-medium text-on-surface transition-colors hover:bg-surface-container-high"
+              >
+                <Icon name="receipt_long" className="text-[18px]" />
+                Record Transaction
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/transactions')}
+                className="flex items-center gap-space-sm rounded-lg border border-outline-variant bg-surface-base px-space-lg py-space-md text-body-md font-medium text-on-surface transition-colors hover:bg-surface-container-high"
+              >
+                <Icon name="bar_chart" className="text-[18px]" />
+                View Transactions
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-space-xl">
+            <div className="flex flex-col gap-space-lg rounded-xl border border-outline-variant bg-surface-base p-space-xl shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-headline-md font-bold text-on-surface">Accounts</h2>
+                <Icon name="account_balance" className="text-on-surface-variant" />
+              </div>
+              <div className="flex flex-col gap-space-md">
+                {accounts.length === 0 && (
+                  <p className="text-body-sm text-on-surface-variant">
+                    No linked accounts yet.
+                  </p>
+                )}
+                {accounts.map((account, idx) => (
+                  <div
+                    key={account.id}
+                    className={`flex items-center justify-between ${
+                      idx < accounts.length - 1
+                        ? 'border-b border-outline-variant pb-space-md'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-space-sm">
+                      <Icon
+                        name={accountIcon(account.type)}
+                        className="text-[20px] text-primary"
+                      />
+                      <div>
+                        <div className="font-medium text-on-surface">{account.name}</div>
+                        <div className="text-label-sm text-on-surface-variant">
+                          {account.institution} {account.accountNumber}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-space-sm">
+                      <span
+                        className={`font-semibold ${
+                          account.balance < 0 ? 'text-status-error' : 'text-on-surface'
+                        }`}
+                      >
+                        {formatMoney(account.balance)}
+                      </span>
+                      <Icon
+                        name={account.balance < 0 ? 'error' : 'check'}
+                        className={`text-[16px] ${
+                          account.balance < 0 ? 'text-status-error' : 'text-status-success'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-space-md rounded-xl border border-outline-variant bg-surface-base p-space-xl shadow-sm">
+              <h3 className="text-headline-sm font-bold text-on-surface">Monthly Pace</h3>
+              <p className="text-body-sm text-on-surface-variant">
+                You have used {budgetUsedPct}% of your budgeted amount with{' '}
+                {Math.max(daysInMonth - day, 0)} days remaining.
+              </p>
+              <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-container">
+                <div className="h-full bg-primary" style={{ width: `${budgetUsedPct}%` }} />
+              </div>
+              <div className="flex justify-between text-label-sm text-on-surface-variant">
+                <span>
+                  Day {day} of {daysInMonth}
+                </span>
+                <span>{budgetUsedPct > 100 ? 'Over budget' : 'On track'}</span>
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="flex gap-4">
-          <button
-            onClick={() => navigate('/transactions')}
-            className="flex-1 py-3 bg-primary text-surface rounded font-medium hover:opacity-90 transition-opacity"
-          >
-            + Add Transaction
-          </button>
-          <button
-            onClick={() => navigate('/transactions')}
-            className="flex-1 py-3 bg-surface-container text-on-surface border border-border-hairline rounded font-medium hover:bg-surface-container-high transition-colors"
-          >
-            View Transactions
-          </button>
         </div>
       </div>
     </MainLayout>

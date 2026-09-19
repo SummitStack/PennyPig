@@ -44,21 +44,21 @@ export default function AccountCard({ account }) {
     : null
 
   return (
-    <div className="bg-surface-container rounded-lg p-6 border border-border-hairline hover:border-primary transition-colors">
-      <div className="flex justify-between items-start mb-4">
+    <div className="rounded-xl border border-border-hairline bg-surface-base p-space-lg shadow-sm transition-colors hover:border-primary">
+      <div className="mb-space-md flex items-start justify-between">
         <div>
           <h3 className="text-headline-sm font-bold text-on-surface">{account.name}</h3>
-          <p className="text-label-md text-on-surface-variant mt-1">{account.institution}</p>
+          <p className="mt-1 text-label-md text-on-surface-variant">{account.institution}</p>
         </div>
-        <span className="text-label-md px-3 py-1 rounded bg-status-success bg-opacity-10 text-status-success">
+        <span className="rounded bg-status-success/10 px-3 py-1 text-label-md text-status-success">
           {account.status}
         </span>
       </div>
 
-      <div className="space-y-3 mb-4">
+      <div className="mb-space-md space-y-3">
         <div className="flex justify-between">
           <span className="text-body-sm text-on-surface-variant">Account</span>
-          <span className="text-body-md text-on-surface font-medium">{account.accountNumber}</span>
+          <span className="text-body-md font-medium text-on-surface">{account.accountNumber}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-body-sm text-on-surface-variant">Balance</span>
@@ -73,7 +73,7 @@ export default function AccountCard({ account }) {
       </div>
 
       {lastSyncTime !== null && (
-        <p className="text-label-md text-on-surface-variant mb-4">
+        <p className="mb-space-md text-label-md text-on-surface-variant">
           Last synced {lastSyncTime} minutes ago
         </p>
       )}
@@ -82,13 +82,13 @@ export default function AccountCard({ account }) {
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="flex-1 py-2 px-3 bg-primary text-surface rounded text-body-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="flex-1 rounded-lg bg-primary px-3 py-2 text-body-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {syncing ? 'Syncing...' : 'Sync'}
         </button>
         <button
           onClick={handleRemove}
-          className="flex-1 py-2 px-3 bg-surface-container text-status-error border border-status-error rounded text-body-sm font-medium hover:bg-status-error hover:bg-opacity-10 transition-colors"
+          className="flex-1 rounded-lg border border-status-error bg-surface-base px-3 py-2 text-body-sm font-medium text-status-error transition-colors hover:bg-status-error/10"
         >
           Remove
         </button>

@@ -29,14 +29,18 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
-        {/* Logo */}
         <div className="text-center">
-          <h1 className="text-headline-lg font-bold text-on-surface">PennyPig</h1>
-          <p className="text-body-md text-on-surface-variant mt-2">Smart budgeting made simple</p>
+          <div className="mb-space-sm flex items-center justify-center gap-space-sm">
+            <span className="material-symbols-outlined text-[28px] text-secondary">savings</span>
+            <h1 className="text-headline-lg font-bold tracking-tight text-on-surface">PennyPig</h1>
+          </div>
+          <p className="text-body-md text-on-surface-variant">Smart budgeting made simple</p>
         </div>
 
-        {/* Login form */}
-        <form onSubmit={handleSubmit} className="space-y-6 bg-surface-container p-8 rounded-lg border border-border-hairline">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6 rounded-xl border border-border-hairline bg-surface-base p-8 shadow-sm"
+        >
           {error && (
             <div className="p-4 bg-status-error bg-opacity-10 border border-status-error rounded text-status-error text-body-sm">
               {error}

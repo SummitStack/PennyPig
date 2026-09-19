@@ -1,11 +1,36 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useAccountStore } from '../../store/accountStore'
+import Icon from '../ui/Icon'
+
+const NAV = [
+  { to: '/', label: 'Dashboard', end: true },
+  { to: '/budgets', label: 'Budget & Allocation' },
+  { to: '/accounts', label: 'Accounts' },
+  { to: '/transactions', label: 'Transactions' },
+]
+
+function formatSyncLabel(accounts) {
+  const times = accounts
+    .map((a) => a.lastSynced)
+    .filter(Boolean)
+    .map((d) => new Date(d).getTime())
+  if (times.length === 0) return null
+  const latest = new Date(Math.max(...times))
+  return latest.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
 
 export default function MainLayout({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const location = useLocation()
   const navigate = useNavigate()
   const signOut = useAuthStore((state) => state.signOut)
+  const accounts = useAccountStore((state) => state.linkedAccounts)
+  const syncLabel = formatSyncLabel(accounts)
 
   const handleSignOut = async () => {
     await signOut()
@@ -13,56 +38,82 @@ export default function MainLayout({ children }) {
   }
 
   return (
-    <div className="flex h-screen bg-surface">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-surface-container border-r border-border-hairline transition-all duration-200 flex flex-col`}>
-        <div className="p-6 border-b border-border-hairline flex items-center justify-between">
-          <span className={`text-headline-sm font-bold text-on-surface ${!sidebarOpen && 'hidden'}`}>
-            PennyPig
-          </span>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 hover:bg-surface-container-high rounded"
-            aria-label="Toggle sidebar"
-          >
-            ☰
-          </button>
+    <div className="min-h-screen bg-surface font-body-md text-on-surface">
+      <header className="fixed top-0 z-50 w-full border-b border-border-hairline bg-surface/80 shadow-[0_1px_8px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-gutter">
+          <div className="flex items-center gap-space-md">
+            <Link to="/" className="flex items-center gap-space-sm">
+              <Icon name="savings" className="text-[24px] text-secondary" />
+              <span className="font-headline-sm text-on-surface font-bold tracking-tight">
+                PennyPig
+              </span>
+            </Link>
+            <nav className="ml-space-lg hidden items-center gap-space-xs md:flex">
+              {NAV.map((item) => {
+                const active = item.end
+                  ? location.pathname === item.to
+                  : location.pathname.startsWith(item.to)
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={`rounded-lg px-space-md py-space-sm text-sm transition-colors ${
+                      active
+                        ? 'bg-surface-container-high font-semibold text-on-surface'
+                        : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </nav>
+          </div>
+          <div className="flex items-center gap-space-lg">
+            {syncLabel && (
+              <div className="hidden items-center gap-space-xs text-label-md text-on-surface-variant sm:flex">
+                <Icon name="sync" className="text-[16px]" />
+                <span>{syncLabel}</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-on-primary"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <Icon name="person" className="text-[18px]" />
+            </button>
+          </div>
         </div>
-
-        <nav className="flex-1 p-4 space-y-2">
-          <NavLink to="/" open={sidebarOpen} label="Dashboard" icon="📊" />
-          <NavLink to="/transactions" open={sidebarOpen} label="Transactions" icon="💳" />
-          <NavLink to="/budgets" open={sidebarOpen} label="Budgets" icon="💰" />
-          <NavLink to="/accounts" open={sidebarOpen} label="Accounts" icon="🏦" />
-          <NavLink to="/settings" open={sidebarOpen} label="Settings" icon="⚙️" />
+        <nav className="flex gap-space-xs overflow-x-auto border-t border-border-hairline px-gutter py-2 md:hidden">
+          {NAV.map((item) => {
+            const active = item.end
+              ? location.pathname === item.to
+              : location.pathname.startsWith(item.to)
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`whitespace-nowrap rounded-lg px-space-md py-space-sm text-sm ${
+                  active
+                    ? 'bg-surface-container-high font-semibold text-on-surface'
+                    : 'text-on-surface-variant'
+                }`}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
         </nav>
+      </header>
 
-        <div className="p-4 border-t border-border-hairline">
-          <button
-            onClick={handleSignOut}
-            className="w-full py-2 px-4 bg-primary text-surface rounded text-body-sm font-medium hover:opacity-90"
-          >
-            {sidebarOpen ? 'Sign Out' : '↓'}
-          </button>
-        </div>
-      </aside>
-
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">
+      <main className="min-h-[calc(100vh-4rem)] w-full bg-surface pt-[7.25rem] md:pt-16">
+        <div className="mx-auto flex w-full max-w-7xl flex-col px-gutter py-space-xl">
           {children}
         </div>
       </main>
     </div>
-  )
-}
-
-function NavLink({ to, label, icon, open }) {
-  return (
-    <Link
-      to={to}
-      className="flex items-center gap-3 px-4 py-2 rounded hover:bg-surface-container-high text-on-surface transition-colors"
-    >
-      <span className="text-xl">{icon}</span>
-      {open && <span className="text-body-md">{label}</span>}
-    </Link>
   )
 }

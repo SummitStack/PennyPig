@@ -84,7 +84,7 @@ export default function PlaidLinkButton() {
       <button
         onClick={() => open()}
         disabled={!ready || !linkToken || linking}
-        className="px-6 py-2 bg-primary text-surface rounded font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="rounded-xl bg-primary px-space-lg py-space-md font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {linking ? 'Connecting...' : !linkToken ? 'Preparing...' : '+ Connect Account'}
       </button>

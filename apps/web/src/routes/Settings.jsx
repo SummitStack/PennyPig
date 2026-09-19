@@ -30,7 +30,7 @@ export default function SettingsPage() {
 
 function SettingsSection({ title, description, children }) {
   return (
-    <div className="bg-surface-container rounded-lg p-6 border border-border-hairline">
+    <div className="bg-surface-container rounded-xl p-6 border border-border-hairline">
       <h2 className="text-headline-sm font-bold text-on-surface">{title}</h2>
       <p className="text-body-sm text-on-surface-variant mt-1">{description}</p>
       <div className="mt-4">{children}</div>
