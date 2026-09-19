@@ -8,6 +8,7 @@ const NAV = [
   { to: '/budgets', label: 'Budget & Allocation' },
   { to: '/accounts', label: 'Accounts' },
   { to: '/transactions', label: 'Transactions' },
+  { to: '/reports', label: 'Reports' },
   { to: '/settings', label: 'Settings' },
 ]
 

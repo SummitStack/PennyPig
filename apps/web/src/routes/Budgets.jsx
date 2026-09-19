@@ -5,6 +5,7 @@ import { useAccountStore } from '../store/accountStore'
 import { useTransactionStore } from '../store/transactionStore'
 import MainLayout from '../components/Layout/MainLayout'
 import BudgetAllocationTable from '../components/Budget/BudgetAllocationTable'
+import MonthClosePanel from '../components/Budget/MonthClosePanel'
 import Icon from '../components/ui/Icon'
 import { authFetch } from '../lib/authFetch'
 
@@ -189,6 +190,8 @@ export default function BudgetsPage() {
             </div>
           </div>
 
+          <MonthClosePanel />
+
           <button
             type="button"
             onClick={() => navigate('/transactions')}
@@ -196,6 +199,15 @@ export default function BudgetsPage() {
           >
             <Icon name="add_circle" className="text-[18px]" />
             <span>Record Transaction</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/reports')}
+            className="flex w-full items-center justify-center gap-space-sm rounded-xl border border-border-hairline bg-surface-container px-space-md py-2.5 font-headline-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-high"
+          >
+            <Icon name="bar_chart" className="text-[18px]" />
+            <span>View Reports</span>
           </button>
         </div>
       </div>
