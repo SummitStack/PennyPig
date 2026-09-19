@@ -18,6 +18,7 @@ import { useBudgetStore } from '../../store/budgetStore'
 import { useTransactionStore } from '../../store/transactionStore'
 import {
   buildCategoryTree,
+  getCategoryDepth,
   getRootCategories,
 } from '../../lib/categories'
 import CategoryForm from '../Categories/CategoryForm'
@@ -83,29 +84,27 @@ function MoneyCell({
   )
 }
 
-/** Visible flat rows from a category list + expanded map. */
+/** Visible flat rows from a category list + expanded map (supports 3 levels). */
 function flattenVisible(categories, expandedGroups) {
   const tree = buildCategoryTree(categories, 'expense')
   const rows = []
-  for (const root of tree) {
-    const hasChildren = root.children.length > 0
-    rows.push({
-      id: root.id,
-      category: root,
-      depth: 0,
-      isGroup: hasChildren,
-    })
-    if (hasChildren && expandedGroups[root.id] !== false) {
-      for (const child of root.children) {
-        rows.push({
-          id: child.id,
-          category: child,
-          depth: 1,
-          isGroup: false,
-        })
+
+  const walk = (nodes, depth) => {
+    for (const node of nodes) {
+      const hasChildren = node.children.length > 0
+      rows.push({
+        id: node.id,
+        category: node,
+        depth,
+        isGroup: hasChildren,
+      })
+      if (hasChildren && expandedGroups[node.id] !== false) {
+        walk(node.children, depth + 1)
       }
     }
   }
+
+  walk(tree, 0)
   return rows
 }
 
@@ -117,35 +116,27 @@ function groupIdSet(categories) {
 }
 
 /**
- * Rebuild parent/sort from a flat visible order.
- * Group headers stay top-level; leaves attach to the nearest preceding group.
+ * Rebuild sort order from a flat visible order while preserving parent links
+ * (supports bucket → parent → subcategory nesting).
  */
 function layoutFromFlatIds(flatIds, categories) {
-  const groups = groupIdSet(categories)
   const byId = Object.fromEntries(categories.map((c) => [c.id, { ...c }]))
-  let lastGroup = null
-  let rootOrder = 0
-  const childCount = {}
+  const orderIndex = Object.fromEntries(flatIds.map((id, i) => [id, i]))
+  const byParent = new Map()
 
   for (const id of flatIds) {
     const cat = byId[id]
     if (!cat || cat.type !== 'expense') continue
+    const p = cat.parentId || null
+    if (!byParent.has(p)) byParent.set(p, [])
+    byParent.get(p).push(id)
+  }
 
-    if (groups.has(id)) {
-      cat.parentId = null
-      rootOrder += 1
-      cat.sortOrder = rootOrder * 10
-      lastGroup = id
-      childCount[id] = 0
-    } else if (lastGroup) {
-      cat.parentId = lastGroup
-      childCount[lastGroup] = (childCount[lastGroup] || 0) + 1
-      cat.sortOrder = childCount[lastGroup] * 10
-    } else {
-      cat.parentId = null
-      rootOrder += 1
-      cat.sortOrder = rootOrder * 10
-    }
+  for (const ids of byParent.values()) {
+    ids.sort((a, b) => (orderIndex[a] ?? 0) - (orderIndex[b] ?? 0))
+    ids.forEach((id, i) => {
+      byId[id].sortOrder = (i + 1) * 10
+    })
   }
 
   return Object.values(byId)
@@ -171,7 +162,7 @@ function CategoryRowContent({
   isOverlay = false,
 }) {
   const available = budgeted - activity
-  const pad = depth === 0 ? '' : 'pl-5'
+  const pad = depth === 0 ? '' : depth === 1 ? 'pl-5' : 'pl-10'
 
   return (
     <div
@@ -358,7 +349,12 @@ export default function BudgetAllocationTable() {
   }, [storeCategories, manageMode, draftCategories])
 
   const parents = useMemo(
-    () => getRootCategories(categories).filter((c) => c.type === 'expense'),
+    () =>
+      categories.filter((c) => {
+        if (c.type !== 'expense') return false
+        // Buckets + parent groups only (leave room for one more nesting level)
+        return getCategoryDepth(categories, c.id) < 2
+      }),
     [categories]
   )
 

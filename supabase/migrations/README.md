@@ -13,6 +13,6 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - Updated `ensure_user_defaults()` seeds groups/subcategories and re-homes legacy flat rows
 
 ## 20260919_category_packs_defaults.sql
-- Refresh `ensure_user_defaults()` core seed: Housing, Utilities, Groceries & Food,
-  Transportation, Savings Goals (+ Salary)
-- Opt-in idea packs live in the web app (`apps/web/src/lib/categoryPacks.js`)
+- Keeps original Living / Food & Dining seed (reverted from temporary Housing seed)
+- Opt-in idea packs live in `apps/web/src/lib/categoryPacks.js` under
+  Fixed / Variable / Savings Goals buckets

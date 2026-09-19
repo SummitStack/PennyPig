@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import {
+  BUCKETS,
   CATEGORY_PACKS,
-  getDefaultPacks,
-  getSuggestedPacks,
+  getPacksForBucket,
   packInstallStatus,
 } from '../../lib/categoryPacks'
 import { useTransactionStore } from '../../store/transactionStore'
@@ -27,11 +27,6 @@ function PackCard({ pack, status, onAdd, busy }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-body-md font-bold text-on-surface">{pack.name}</h3>
-            {pack.default && (
-              <span className="rounded bg-cool-blue/15 px-1.5 py-0.5 text-label-sm font-semibold text-cool-blue">
-                Default
-              </span>
-            )}
             {installed && (
               <span className="rounded bg-sage-accent/20 px-1.5 py-0.5 text-label-sm font-semibold text-sage-accent">
                 Added
@@ -74,7 +69,7 @@ function PackCard({ pack, status, onAdd, busy }) {
             className="inline-flex items-center gap-1 rounded-lg bg-primary px-space-md py-1.5 text-label-md font-semibold text-on-primary disabled:opacity-50"
           >
             <Icon name="add" className="text-[14px]" />
-            {partial ? 'Add missing' : 'Add to budget'}
+            {partial ? 'Add missing' : 'Add parent group'}
           </button>
         )}
       </div>
@@ -83,7 +78,7 @@ function PackCard({ pack, status, onAdd, busy }) {
 }
 
 /**
- * Browse default + suggested category packs; add packs or jump to custom create.
+ * Browse category ideas by Fixed / Variable / Savings buckets.
  */
 export default function CategoryPacksPanel({ onCustom, onClose }) {
   const categories = useTransactionStore((state) => state.categories)
@@ -91,12 +86,10 @@ export default function CategoryPacksPanel({ onCustom, onClose }) {
   const [busyId, setBusyId] = useState(null)
   const [flash, setFlash] = useState(null)
   const [error, setError] = useState(null)
-  const [tab, setTab] = useState('suggested') // 'defaults' | 'suggested' | 'all'
+  const [bucketId, setBucketId] = useState('fixed')
 
-  const defaults = useMemo(() => getDefaultPacks(), [])
-  const suggested = useMemo(() => getSuggestedPacks(), [])
-
-  const visible = tab === 'defaults' ? defaults : tab === 'suggested' ? suggested : CATEGORY_PACKS
+  const packs = useMemo(() => getPacksForBucket(bucketId), [bucketId])
+  const activeBucket = BUCKETS.find((b) => b.id === bucketId)
 
   const handleAdd = async (pack) => {
     setBusyId(pack.id)
@@ -111,7 +104,31 @@ export default function CategoryPacksPanel({ onCustom, onClose }) {
     setFlash(
       result.added === 0
         ? `“${pack.name}” is already complete`
-        : `Added ${result.added} categor${result.added === 1 ? 'y' : 'ies'} from ${pack.name}`
+        : `Added ${result.added} categor${result.added === 1 ? 'y' : 'ies'} to ${pack.name}`
+    )
+  }
+
+  const handleAddBucket = async () => {
+    setError(null)
+    setFlash(null)
+    let total = 0
+    for (const pack of packs) {
+      const status = packInstallStatus(pack, categories)
+      if (status.fullyInstalled) continue
+      setBusyId(pack.id)
+      const result = await addCategoryPack(pack)
+      if (!result.success) {
+        setBusyId(null)
+        setError(result.error || `Failed on ${pack.name}`)
+        return
+      }
+      total += result.added || 0
+    }
+    setBusyId(null)
+    setFlash(
+      total === 0
+        ? `All ${activeBucket?.name || 'packs'} already added`
+        : `Added ${total} categor${total === 1 ? 'y' : 'ies'} in ${activeBucket?.name}`
     )
   }
 
@@ -123,8 +140,10 @@ export default function CategoryPacksPanel({ onCustom, onClose }) {
             Category ideas
           </h2>
           <p className="mt-1 text-body-sm text-on-surface-variant">
-            Your budget starts with core defaults. Add more groups from these
-            ideas, or create your own.
+            Organized into fixed expenses, variable expenses, and savings goals.
+            Each card is a parent group — its chips are subcategories. Your
+            existing budget categories stay as-is; adding a pack only fills in
+            what’s missing.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -151,32 +170,43 @@ export default function CategoryPacksPanel({ onCustom, onClose }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-border-hairline pb-2">
-        {[
-          { id: 'suggested', label: 'Ideas to add' },
-          { id: 'defaults', label: 'Included by default' },
-          { id: 'all', label: 'All packs' },
-        ].map((t) => (
+      <div className="flex flex-wrap items-center gap-1 border-b border-border-hairline pb-2">
+        {BUCKETS.map((b) => (
           <button
-            key={t.id}
+            key={b.id}
             type="button"
-            onClick={() => setTab(t.id)}
-            className={`rounded-lg px-space-sm py-1 text-label-md font-semibold transition-colors ${
-              tab === t.id
+            onClick={() => setBucketId(b.id)}
+            className={`rounded-lg px-space-sm py-1.5 text-label-md font-semibold transition-colors ${
+              bucketId === b.id
                 ? 'bg-primary text-on-primary'
                 : 'text-on-surface-variant hover:bg-surface-base hover:text-on-surface'
             }`}
           >
-            {t.label}
+            <span aria-hidden>{b.emoji}</span> {b.name}
           </button>
         ))}
+        <button
+          type="button"
+          disabled={Boolean(busyId)}
+          onClick={handleAddBucket}
+          className="ml-auto inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-surface-base px-space-sm py-1.5 text-label-md font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
+        >
+          <Icon name="playlist_add" className="text-[14px]" />
+          Add all in {activeBucket?.name || 'bucket'}
+        </button>
       </div>
+
+      {activeBucket && (
+        <p className="text-label-md text-on-surface-variant">
+          {activeBucket.description}
+        </p>
+      )}
 
       {flash && <p className="text-label-md text-sage-accent">{flash}</p>}
       {error && <p className="text-label-md text-status-error">{error}</p>}
 
       <div className="grid grid-cols-1 gap-space-md md:grid-cols-2">
-        {visible.map((pack) => (
+        {packs.map((pack) => (
           <PackCard
             key={pack.id}
             pack={pack}
@@ -185,7 +215,16 @@ export default function CategoryPacksPanel({ onCustom, onClose }) {
             busy={busyId === pack.id}
           />
         ))}
+        {packs.length === 0 && (
+          <p className="text-body-sm text-on-surface-variant">
+            No packs in this bucket.
+          </p>
+        )}
       </div>
+
+      <p className="text-label-sm text-on-surface-variant">
+        {CATEGORY_PACKS.length} parent groups available across all buckets.
+      </p>
     </div>
   )
 }

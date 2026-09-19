@@ -1,36 +1,69 @@
 /**
- * Budget category packs for PennyPig.
+ * Category idea packs organized into three buckets:
+ * Fixed expenses → Variable expenses → Savings Goals.
  *
- * - default: true  → seeded automatically for new budgets
- * - default: false → suggested ideas the user can add later
- *
- * Category names must be unique per user (DB constraint), so overlapping
- * labels are disambiguated (e.g. Natural Gas vs Gas/Fuel).
+ * Each pack is a parent group; `categories` are its subcategories.
+ * Packs are opt-in (not re-seeded). Default DB seed stays the original
+ * Living / Food & Dining tree — packs merge by name when overlapping.
  */
 
+export const BUCKETS = [
+  {
+    id: 'fixed',
+    name: 'Fixed expenses',
+    emoji: '📌',
+    description: 'Predictable costs that stay fairly stable month to month',
+  },
+  {
+    id: 'variable',
+    name: 'Variable expenses',
+    emoji: '📊',
+    description: 'Spending that flexes with your choices and lifestyle',
+  },
+  {
+    id: 'savings',
+    name: 'Savings Goals',
+    emoji: '🎯',
+    description: 'Money you’re setting aside on purpose',
+  },
+]
+
+/**
+ * Optional aliases: existing seeded names that count as the same pack group.
+ * Prevents duplicating Living / Food & Dining when adding Housing / Groceries packs.
+ */
+export const GROUP_ALIASES = {
+  Housing: ['Living'],
+  'Groceries & Food': ['Food & Dining'],
+  Entertainment: ['Entertainment'],
+  Transportation: ['Transportation'],
+  'Savings Goals': ['Savings Goals'],
+}
+
 export const CATEGORY_PACKS = [
+  // ── Fixed ────────────────────────────────────────────────────────────────
   {
     id: 'housing',
+    bucket: 'fixed',
     name: 'Housing',
     emoji: '🏠',
     color: '#34d399',
     description: 'Rent or mortgage and keeping a roof overhead',
-    default: true,
     categories: [
       { name: 'Rent/Mortgage', emoji: '🏡' },
       { name: 'Property Tax', emoji: '🧾' },
       { name: 'Home Insurance', emoji: '🛡️' },
       { name: 'HOA Fees', emoji: '🏘️' },
-      { name: 'Home Maintenance & Repairs', emoji: '🔧' },
+      { name: 'Maintenance & Repairs', emoji: '🔧' },
     ],
   },
   {
     id: 'utilities',
+    bucket: 'fixed',
     name: 'Utilities',
     emoji: '💡',
     color: '#fbbf24',
     description: 'Power, water, gas, and connectivity',
-    default: true,
     categories: [
       { name: 'Electricity', emoji: '⚡' },
       { name: 'Water/Sewer', emoji: '💧' },
@@ -40,12 +73,56 @@ export const CATEGORY_PACKS = [
     ],
   },
   {
+    id: 'transportation',
+    bucket: 'fixed',
+    name: 'Transportation',
+    emoji: '🚗',
+    color: '#60a5fa',
+    description: 'Getting around day to day',
+    categories: [
+      { name: 'Car Payment', emoji: '🚙' },
+      { name: 'Car Insurance', emoji: '📋' },
+      { name: 'Gas', emoji: '⛽' },
+      { name: 'Vehicle Maintenance & Repairs', emoji: '🛠️' },
+      { name: 'Public Transit', emoji: '🚌' },
+      { name: 'Parking', emoji: '🅿️' },
+    ],
+  },
+  {
+    id: 'insurance',
+    bucket: 'fixed',
+    name: 'Insurance',
+    emoji: '🛡️',
+    color: '#94a3b8',
+    description: 'Coverage beyond home and auto',
+    categories: [
+      { name: 'Health Insurance', emoji: '🏥' },
+      { name: 'Life Insurance', emoji: '💙' },
+      { name: 'Disability Insurance', emoji: '♿' },
+    ],
+  },
+  {
+    id: 'debt-payments',
+    bucket: 'fixed',
+    name: 'Debt Payments',
+    emoji: '💳',
+    color: '#f87171',
+    description: 'Paying down what you owe',
+    categories: [
+      { name: 'Student Loans', emoji: '🎓' },
+      { name: 'Credit Card Minimum', emoji: '💳' },
+      { name: 'Personal Loans', emoji: '🏦' },
+    ],
+  },
+
+  // ── Variable ─────────────────────────────────────────────────────────────
+  {
     id: 'groceries-food',
+    bucket: 'variable',
     name: 'Groceries & Food',
     emoji: '🍽️',
     color: '#f472b6',
     description: 'Everyday eating and takeout',
-    default: true,
     categories: [
       { name: 'Groceries', emoji: '🛒' },
       { name: 'Restaurants & Dining Out', emoji: '🍝' },
@@ -54,60 +131,12 @@ export const CATEGORY_PACKS = [
     ],
   },
   {
-    id: 'transportation',
-    name: 'Transportation',
-    emoji: '🚗',
-    color: '#60a5fa',
-    description: 'Getting around day to day',
-    default: true,
-    categories: [
-      { name: 'Car Payment', emoji: '🚙' },
-      { name: 'Car Insurance', emoji: '📋' },
-      { name: 'Gas/Fuel', emoji: '⛽' },
-      { name: 'Car Maintenance & Repairs', emoji: '🛠️' },
-      { name: 'Public Transit', emoji: '🚌' },
-      { name: 'Parking', emoji: '🅿️' },
-    ],
-  },
-  {
-    id: 'savings-goals',
-    name: 'Savings Goals',
-    emoji: '🎯',
-    color: '#4ade80',
-    description: 'Money you’re setting aside on purpose',
-    default: true,
-    categories: [
-      { name: 'Emergency Fund', emoji: '🛟' },
-      { name: 'Vacation Fund', emoji: '🏖️' },
-      { name: 'Car Purchase', emoji: '🚘' },
-      { name: 'Home Down Payment', emoji: '🔑' },
-      { name: 'Wedding', emoji: '💍' },
-      { name: 'Home Repairs Fund', emoji: '🏗️' },
-      { name: 'Car Repairs Fund', emoji: '🔩' },
-      { name: 'Medical Fund', emoji: '🏥' },
-    ],
-  },
-  {
-    id: 'income',
-    name: 'Income',
-    emoji: '💰',
-    color: '#4ade80',
-    description: 'Money coming in',
-    default: true,
-    type: 'income',
-    /** Create listed categories as top-level roots (no parent group). */
-    flat: true,
-    categories: [{ name: 'Salary', emoji: '💵', type: 'income' }],
-  },
-
-  // ── Suggested (opt-in) ───────────────────────────────────────────────────
-  {
     id: 'health-personal-care',
+    bucket: 'variable',
     name: 'Health & Personal Care',
     emoji: '🩺',
     color: '#fb7185',
     description: 'Medical, fitness, and looking after yourself',
-    default: false,
     categories: [
       { name: 'Doctor/Medical', emoji: '🩺' },
       { name: 'Dental', emoji: '🦷' },
@@ -119,11 +148,11 @@ export const CATEGORY_PACKS = [
   },
   {
     id: 'clothing-accessories',
+    bucket: 'variable',
     name: 'Clothing & Accessories',
     emoji: '👕',
     color: '#fbbf24',
     description: 'What you wear and how you care for it',
-    default: false,
     categories: [
       { name: 'Clothes', emoji: '👕' },
       { name: 'Shoes', emoji: '👟' },
@@ -133,40 +162,40 @@ export const CATEGORY_PACKS = [
   },
   {
     id: 'entertainment',
+    bucket: 'variable',
     name: 'Entertainment',
     emoji: '🎬',
     color: '#a78bfa',
     description: 'Fun, media, and hobbies',
-    default: false,
     categories: [
       { name: 'Movies/Streaming', emoji: '📺' },
       { name: 'Games/Gaming', emoji: '🎮' },
-      { name: 'Books & Magazines', emoji: '📚' },
+      { name: 'Books', emoji: '📚' },
       { name: 'Concerts/Events', emoji: '🎟️' },
       { name: 'Hobbies', emoji: '🎨' },
     ],
   },
   {
     id: 'pets',
+    bucket: 'variable',
     name: 'Pets',
     emoji: '🐾',
     color: '#fdba74',
     description: 'Food, vet visits, and pet supplies',
-    default: false,
     categories: [
       { name: 'Pet Food', emoji: '🦴' },
       { name: 'Vet Care', emoji: '🐕' },
       { name: 'Pet Supplies', emoji: '🧸' },
-      { name: 'Pet Grooming', emoji: '✂️' },
+      { name: 'Grooming', emoji: '✂️' },
     ],
   },
   {
     id: 'household-garden',
+    bucket: 'variable',
     name: 'Household & Garden',
     emoji: '🪴',
     color: '#86efac',
     description: 'Home supplies, furniture, and outdoors',
-    default: false,
     categories: [
       { name: 'Cleaning Supplies', emoji: '🧹' },
       { name: 'Furniture', emoji: '🛋️' },
@@ -176,11 +205,11 @@ export const CATEGORY_PACKS = [
   },
   {
     id: 'gifts-donations',
+    bucket: 'variable',
     name: 'Gifts & Donations',
     emoji: '🎁',
     color: '#f9a8d4',
     description: 'Giving to others and causes you care about',
-    default: false,
     categories: [
       { name: 'Gifts for Others', emoji: '🎀' },
       { name: 'Charitable Donations', emoji: '❤️' },
@@ -189,11 +218,11 @@ export const CATEGORY_PACKS = [
   },
   {
     id: 'education',
+    bucket: 'variable',
     name: 'Education',
     emoji: '🎓',
     color: '#7dd3fc',
     description: 'School and learning costs',
-    default: false,
     categories: [
       { name: 'Tuition', emoji: '🏫' },
       { name: 'Books/Supplies', emoji: '📖' },
@@ -202,88 +231,78 @@ export const CATEGORY_PACKS = [
   },
   {
     id: 'personal-development',
+    bucket: 'variable',
     name: 'Personal Development',
     emoji: '📈',
     color: '#c4b5fd',
     description: 'Growth outside formal school',
-    default: false,
     categories: [
-      { name: 'Development Books', emoji: '📕' },
+      { name: 'Self-help Books', emoji: '📕' },
       { name: 'Conferences', emoji: '🎤' },
       { name: 'Workshops', emoji: '🧩' },
     ],
   },
   {
     id: 'travel-vacation',
+    bucket: 'variable',
     name: 'Travel & Vacation',
     emoji: '✈️',
     color: '#38bdf8',
     description: 'Trips away from home',
-    default: false,
     categories: [
       { name: 'Flights', emoji: '🛫' },
       { name: 'Hotels/Lodging', emoji: '🏨' },
       { name: 'Car Rental', emoji: '🚕' },
       { name: 'Activities/Tours', emoji: '🗺️' },
-      { name: 'Travel Meals', emoji: '🍜' },
+      { name: 'Meals (travel)', emoji: '🍜' },
     ],
   },
+
+  // ── Savings (subcategories hang directly under the Savings Goals bucket) ─
   {
-    id: 'insurance',
-    name: 'Insurance',
-    emoji: '🛡️',
-    color: '#94a3b8',
-    description: 'Coverage beyond home and auto',
-    default: false,
+    id: 'savings-goals',
+    bucket: 'savings',
+    name: 'Savings Goals',
+    emoji: '🎯',
+    color: '#4ade80',
+    description: 'Funds you’re building toward',
+    /** Leaves attach to the bucket itself (no extra parent under the bucket). */
+    attachToBucket: true,
     categories: [
-      { name: 'Health Insurance', emoji: '🏥' },
-      { name: 'Life Insurance', emoji: '💙' },
-      { name: 'Disability Insurance', emoji: '♿' },
-    ],
-  },
-  {
-    id: 'debt-payments',
-    name: 'Debt Payments',
-    emoji: '💳',
-    color: '#f87171',
-    description: 'Paying down what you owe',
-    default: false,
-    categories: [
-      { name: 'Student Loans', emoji: '🎓' },
-      { name: 'Credit Card Minimum', emoji: '💳' },
-      { name: 'Personal Loans', emoji: '🏦' },
-    ],
-  },
-  {
-    id: 'annual-expenses',
-    name: 'Annual Expenses',
-    emoji: '📅',
-    color: '#a3e635',
-    description: 'Once-a-year costs to plan ahead for',
-    default: false,
-    categories: [
-      { name: 'Car Registration', emoji: '🚘' },
-      { name: 'Insurance Deductibles', emoji: '📑' },
-      { name: 'Memberships & Dues', emoji: '🪪' },
+      { name: 'Emergency Fund', emoji: '🛟' },
+      { name: 'Vacation Fund', emoji: '🏖️' },
+      { name: 'Car Purchase', emoji: '🚘' },
+      { name: 'Home Down Payment', emoji: '🔑' },
+      { name: 'Wedding', emoji: '💍' },
+      { name: 'Home Repairs', emoji: '🏗️' },
+      { name: 'Car Repairs', emoji: '🔩' },
+      { name: 'Medical', emoji: '🏥' },
+      { name: 'Annual Expenses', emoji: '📅' },
     ],
   },
 ]
 
-export function getDefaultPacks() {
-  return CATEGORY_PACKS.filter((p) => p.default)
+export function getBucket(id) {
+  return BUCKETS.find((b) => b.id === id) || null
 }
 
-export function getSuggestedPacks() {
-  return CATEGORY_PACKS.filter((p) => !p.default)
+export function getPacksForBucket(bucketId) {
+  return CATEGORY_PACKS.filter((p) => p.bucket === bucketId)
 }
 
 export function getPackById(id) {
   return CATEGORY_PACKS.find((p) => p.id === id) || null
 }
 
-/** How many of a pack’s categories already exist for this user. */
+export function findGroupCategory(pack, categories) {
+  const names = [pack.name, ...(GROUP_ALIASES[pack.name] || [])]
+  const lower = new Set(names.map((n) => n.toLowerCase()))
+  return categories.find((c) => lower.has(c.name.toLowerCase())) || null
+}
+
 export function packInstallStatus(pack, categories) {
   const byName = new Map(categories.map((c) => [c.name.toLowerCase(), c]))
+  const group = findGroupCategory(pack, categories)
   const existingChildren = pack.categories.filter((c) =>
     byName.has(c.name.toLowerCase())
   )
@@ -291,19 +310,20 @@ export function packInstallStatus(pack, categories) {
     (c) => !byName.has(c.name.toLowerCase())
   )
 
-  if (pack.flat) {
+  // Savings attach-to-bucket: "installed" when all leaves exist (bucket optional)
+  if (pack.attachToBucket) {
     return {
-      groupExists: false,
-      groupId: null,
+      groupExists: Boolean(group),
+      groupId: group?.id || null,
       existingCount: existingChildren.length,
       missingCount: missingChildren.length,
       total: pack.categories.length,
-      fullyInstalled: missingChildren.length === 0 && pack.categories.length > 0,
+      fullyInstalled:
+        missingChildren.length === 0 && pack.categories.length > 0,
       partial: existingChildren.length > 0 && missingChildren.length > 0,
     }
   }
 
-  const group = byName.get(pack.name.toLowerCase())
   return {
     groupExists: Boolean(group),
     groupId: group?.id || null,
@@ -311,7 +331,9 @@ export function packInstallStatus(pack, categories) {
     missingCount: missingChildren.length,
     total: pack.categories.length,
     fullyInstalled:
-      Boolean(group) && missingChildren.length === 0 && pack.categories.length > 0,
+      Boolean(group) &&
+      missingChildren.length === 0 &&
+      pack.categories.length > 0,
     partial: Boolean(group) || existingChildren.length > 0,
   }
 }

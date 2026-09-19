@@ -235,11 +235,28 @@ export function getLeafCategories(categories, type = 'expense') {
 }
 
 export function buildCategoryTree(categories, type = 'expense') {
-  const roots = getRootCategories(categories).filter((c) => !type || c.type === type)
-  return roots.map((root) => ({
-    ...root,
-    children: getChildCategories(categories, root.id).filter(
-      (c) => !type || c.type === type
-    ),
-  }))
+  const filtered = categories.filter((c) => !type || c.type === type)
+
+  const build = (parentId) =>
+    filtered
+      .filter((c) => (c.parentId || null) === (parentId || null))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .map((node) => ({
+        ...node,
+        children: build(node.id),
+      }))
+
+  return build(null)
+}
+
+/** Depth of a category in the tree (0 = root). */
+export function getCategoryDepth(categories, categoryId) {
+  let depth = 0
+  let cur = categories.find((c) => c.id === categoryId)
+  while (cur?.parentId) {
+    depth += 1
+    cur = categories.find((c) => c.id === cur.parentId)
+    if (depth > 10) break
+  }
+  return depth
 }
