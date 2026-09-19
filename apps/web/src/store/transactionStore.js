@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
-import { mapCategory } from '../lib/categories'
+import {
+  mapCategory,
+  getRootCategories,
+  getChildCategories,
+} from '../lib/categories'
 
 function mapTransaction(row, accountsById, categoriesById) {
   const account = accountsById[row.account_id]
@@ -188,6 +192,111 @@ export const useTransactionStore = create((set, get) => ({
       categories: state.categories.filter((c) => c.id !== categoryId),
     }))
     return { success: true }
+  },
+
+  /**
+   * Move a category up/down among siblings. At the edge of a group, subcategories
+   * cross into the previous/next main category.
+   */
+  reorderCategory: async (categoryId, direction) => {
+    const categories = get().categories
+    const cat = categories.find((c) => c.id === categoryId)
+    if (!cat) return { success: false, error: 'Category not found' }
+    if (direction !== 'up' && direction !== 'down') {
+      return { success: false, error: 'Invalid direction' }
+    }
+
+    const sortSiblings = (list) =>
+      [...list].sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
+      )
+
+    const persistPair = async (updates) => {
+      // Optimistic local update
+      set((state) => ({
+        categories: state.categories.map((c) => {
+          const hit = updates.find((u) => u.id === c.id)
+          if (!hit) return c
+          return {
+            ...c,
+            parentId: hit.parentId !== undefined ? hit.parentId : c.parentId,
+            sortOrder: hit.sortOrder !== undefined ? hit.sortOrder : c.sortOrder,
+          }
+        }),
+      }))
+
+      if (!supabase) return { success: true }
+
+      for (const u of updates) {
+        const payload = {}
+        if (u.parentId !== undefined) payload.parent_id = u.parentId
+        if (u.sortOrder !== undefined) payload.sort_order = u.sortOrder
+        const { error } = await supabase.from('categories').update(payload).eq('id', u.id)
+        if (error) {
+          await get().reloadCategories()
+          return { success: false, error: error.message }
+        }
+      }
+      return { success: true }
+    }
+
+    // Top-level groups / standalone roots
+    if (!cat.parentId) {
+      const roots = sortSiblings(
+        getRootCategories(categories).filter((c) => c.type === cat.type)
+      )
+      const idx = roots.findIndex((c) => c.id === categoryId)
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+      if (idx < 0 || swapIdx < 0 || swapIdx >= roots.length) {
+        return { success: false, error: 'Already at the edge' }
+      }
+      const other = roots[swapIdx]
+      return persistPair([
+        { id: cat.id, sortOrder: other.sortOrder },
+        { id: other.id, sortOrder: cat.sortOrder },
+      ])
+    }
+
+    // Subcategory within a group
+    const roots = sortSiblings(
+      getRootCategories(categories).filter((c) => c.type === cat.type)
+    )
+    const parentIdx = roots.findIndex((r) => r.id === cat.parentId)
+    const siblings = sortSiblings(getChildCategories(categories, cat.parentId))
+    const idx = siblings.findIndex((c) => c.id === categoryId)
+
+    if (direction === 'up' && idx === 0) {
+      if (parentIdx <= 0) return { success: false, error: 'Already at the top' }
+      const prevRoot = roots[parentIdx - 1]
+      const prevChildren = sortSiblings(getChildCategories(categories, prevRoot.id))
+      const sortOrder =
+        (prevChildren.reduce((max, c) => Math.max(max, c.sortOrder || 0), 0) ||
+          prevRoot.sortOrder) + 1
+      return persistPair([{ id: cat.id, parentId: prevRoot.id, sortOrder }])
+    }
+
+    if (direction === 'down' && idx === siblings.length - 1) {
+      if (parentIdx < 0 || parentIdx >= roots.length - 1) {
+        return { success: false, error: 'Already at the bottom' }
+      }
+      const nextRoot = roots[parentIdx + 1]
+      const nextChildren = sortSiblings(getChildCategories(categories, nextRoot.id))
+      // Place at start of next group: shift others up locally via sortOrder - 1 gap
+      const minSort = nextChildren.length
+        ? Math.min(...nextChildren.map((c) => c.sortOrder || 0))
+        : nextRoot.sortOrder + 1
+      return persistPair([{ id: cat.id, parentId: nextRoot.id, sortOrder: minSort - 1 }])
+    }
+
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (idx < 0 || swapIdx < 0 || swapIdx >= siblings.length) {
+      return { success: false, error: 'Already at the edge' }
+    }
+    const other = siblings[swapIdx]
+    return persistPair([
+      { id: cat.id, sortOrder: other.sortOrder },
+      { id: other.id, sortOrder: cat.sortOrder },
+    ])
   },
 
   categorizeTransaction: async (transactionId, categoryId) => {

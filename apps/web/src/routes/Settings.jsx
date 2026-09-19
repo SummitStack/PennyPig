@@ -1,32 +1,27 @@
-import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import MainLayout from '../components/Layout/MainLayout'
-import CategoryManager from '../components/Settings/CategoryManager'
-import { useTransactionStore } from '../store/transactionStore'
 
 export default function SettingsPage() {
-  const loadData = useTransactionStore((state) => state.loadData)
-  const hydrated = useTransactionStore((state) => state.hydrated)
-
-  useEffect(() => {
-    if (!hydrated) loadData()
-  }, [hydrated, loadData])
-
   return (
     <MainLayout>
       <div className="max-w-3xl space-y-6">
         <div>
           <h1 className="text-headline-lg font-bold text-on-surface">Settings</h1>
           <p className="mt-2 text-body-md text-on-surface-variant">
-            Manage categories and account preferences
+            Account and app preferences
           </p>
         </div>
 
         <div className="space-y-4">
-          <SettingsSection
-            title="Categories"
-            description="Add groups and subcategories, pick emojis, or remove ones you do not need"
-          >
-            <CategoryManager />
+          <SettingsSection title="Categories" description="Managed on the budget page">
+            <p className="text-body-md text-on-surface-variant">
+              Add, edit, reorder, and emoji-tag categories directly in{' '}
+              <Link to="/budgets" className="font-semibold text-primary hover:underline">
+                Budget &amp; Allocation
+              </Link>
+              . Use the pencil on a row to edit, or the hamburger control to move
+              categories up and down — including between groups.
+            </p>
           </SettingsSection>
 
           <SettingsSection title="Account" description="Email and password">

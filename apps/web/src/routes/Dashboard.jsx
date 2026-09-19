@@ -253,7 +253,7 @@ export default function Dashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/settings')}
+                onClick={() => navigate('/budgets')}
                 className="flex items-center gap-space-sm rounded-lg border border-outline-variant bg-surface-base px-space-lg py-space-md text-body-md font-medium text-on-surface transition-colors hover:bg-surface-container-high"
               >
                 <Icon name="category" className="text-[18px]" />
