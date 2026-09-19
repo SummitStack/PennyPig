@@ -22,11 +22,12 @@ export default function BudgetsPage() {
     setSyncLoading(true)
     try {
       for (const account of accounts) {
-        if (!account.plaidItemId && !account.id) continue
-        await authFetch('/api/plaid/sync', {
+        const response = await authFetch('/api/plaid/sync', {
           method: 'POST',
           body: JSON.stringify({ account_id: account.id }),
         })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Sync failed')
       }
       await Promise.all([loadAccounts(), loadData(), loadBudgets()])
     } catch (err) {

@@ -26,6 +26,8 @@ npm run dev
 | `PLAID_ENV` | `sandbox` / `development` / `production` |
 
 ## Data model
-`users`, `plaid_items` (server-held access tokens), `accounts`, `categories`, `transactions`, `budgets`.
+`users`, `plaid_items`, `accounts`, `categories`, `transactions`, `budgets`.
 
-On signup, a trigger creates the profile row and default categories. Budget activity is computed from transactions.
+Plaid `access_token` values are stored in `plaid_items` but are **not** selectable by the anon/authenticated roles. The Next.js API reads them via the `get_plaid_access_token` RPC (security definer, scoped to `auth.uid()`).
+
+On signup/login, `ensure_user_defaults` (and the auth trigger) create the profile row and default categories. Budget activity is computed from transactions.

@@ -1,4 +1,4 @@
-# dependencies
+-- dependencies
 node_modules
 dist
 build
@@ -19,6 +19,3 @@ npm-debug.log*
 .idea
 *.swp
 *.swo
-
-# backend
-apps/web/api/node_modules

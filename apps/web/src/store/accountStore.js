@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 function mapAccount(row) {
   return {
@@ -16,7 +16,7 @@ function mapAccount(row) {
   }
 }
 
-export const useAccountStore = create((set, get) => ({
+export const useAccountStore = create((set) => ({
   linkedAccounts: [],
   loading: false,
   error: null,
@@ -61,14 +61,5 @@ export const useAccountStore = create((set, get) => ({
       linkedAccounts: state.linkedAccounts.filter((acc) => acc.id !== accountId),
     }))
     return { success: true }
-  },
-
-  syncAccount: async (accountId) => {
-    // Timestamp bump after successful API sync
-    set((state) => ({
-      linkedAccounts: state.linkedAccounts.map((acc) =>
-        acc.id === accountId ? { ...acc, lastSynced: new Date() } : acc
-      ),
-    }))
   },
 }))

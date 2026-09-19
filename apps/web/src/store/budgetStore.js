@@ -132,8 +132,6 @@ export const useBudgetStore = create((set, get) => ({
     return { success: true }
   },
 
-  setBudget: (categoryName, amount) => get().updateBudget(categoryName, null, amount),
-
   getCategoryStatus: (categoryName) => {
     const state = get()
     const budgeted = state.budgets[state.currentMonth]?.[categoryName] || 0

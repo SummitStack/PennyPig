@@ -1,4 +1,5 @@
--- PennyPig schema (applied to Supabase project fnlejvzgcrnwcsxelnqz)
+-- PennyPig schema mirror (live project: fnlejvzgcrnwcsxelnqz)
+-- Applied via Supabase migrations; keep in sync when changing DDL.
 
 CREATE TABLE IF NOT EXISTS public.users (
   id uuid PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
@@ -21,7 +22,9 @@ CREATE TABLE IF NOT EXISTS public.plaid_items (
 CREATE TABLE IF NOT EXISTS public.accounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  account_type text NOT NULL CHECK (account_type = ANY (ARRAY['credit','debit','checking','savings','other'])),
+  account_type text NOT NULL CHECK (
+    account_type = ANY (ARRAY['credit','debit','checking','savings','other'])
+  ),
   name text NOT NULL,
   plaid_account_id text UNIQUE,
   plaid_item_id uuid REFERENCES public.plaid_items(id) ON DELETE SET NULL,
@@ -82,4 +85,10 @@ ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
 
--- See live project for policies + handle_new_user trigger that seeds default categories.
+-- Column privileges: authenticated may SELECT plaid_items metadata but NOT access_token.
+-- Tokens are read only via SECURITY DEFINER RPC get_plaid_access_token(uuid).
+
+-- RPCs (see migrations):
+--   public.handle_new_user()          -- auth.users trigger
+--   public.ensure_user_defaults()     -- client/server profile + category seed
+--   public.get_plaid_access_token(uuid)
