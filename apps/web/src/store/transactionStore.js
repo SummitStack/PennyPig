@@ -146,6 +146,69 @@ export const useTransactionStore = create((set, get) => ({
     return { success: true, category: mapCategory(data) }
   },
 
+  /**
+   * Install a category pack: ensure group (+ children) exist.
+   * Skips names that already exist. Returns counts added.
+   */
+  addCategoryPack: async (pack) => {
+    if (!pack) return { success: false, error: 'Pack required' }
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+
+    let added = 0
+    let groupId = null
+    const type = pack.type || 'expense'
+    const color = pack.color || '#10b981'
+
+    const findByName = (name) =>
+      get().categories.find(
+        (c) => c.name.toLowerCase() === String(name).toLowerCase()
+      )
+
+    if (!pack.flat) {
+      const existingGroup = findByName(pack.name)
+      if (existingGroup) {
+        groupId = existingGroup.id
+      } else {
+        const created = await get().createCategory({
+          name: pack.name,
+          type,
+          emoji: pack.emoji || '📂',
+          parentId: null,
+          color,
+        })
+        if (!created.success) return created
+        groupId = created.category.id
+        // mark non-custom for seed-like packs? keep custom true from createCategory — OK
+        added += 1
+      }
+    }
+
+    for (let i = 0; i < pack.categories.length; i += 1) {
+      const child = pack.categories[i]
+      if (findByName(child.name)) continue
+      const childType = child.type || type
+      const result = await get().createCategory({
+        name: child.name,
+        type: childType,
+        emoji: child.emoji || '📁',
+        parentId: pack.flat ? null : groupId,
+        color,
+      })
+      if (!result.success) {
+        // Unique violation mid-pack — reload and continue
+        if (String(result.error || '').toLowerCase().includes('duplicate')) {
+          await get().reloadCategories()
+          continue
+        }
+        return { success: false, error: result.error, added }
+      }
+      added += 1
+    }
+
+    await get().reloadCategories()
+    return { success: true, added, groupId }
+  },
+
   updateCategory: async (categoryId, patch) => {
     if (!supabase) return { success: false, error: 'Supabase not configured' }
 
