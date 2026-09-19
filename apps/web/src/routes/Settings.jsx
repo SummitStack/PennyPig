@@ -1,26 +1,44 @@
+import { useEffect } from 'react'
 import MainLayout from '../components/Layout/MainLayout'
+import CategoryManager from '../components/Settings/CategoryManager'
+import { useTransactionStore } from '../store/transactionStore'
 
 export default function SettingsPage() {
+  const loadData = useTransactionStore((state) => state.loadData)
+  const hydrated = useTransactionStore((state) => state.hydrated)
+
+  useEffect(() => {
+    if (!hydrated) loadData()
+  }, [hydrated, loadData])
+
   return (
     <MainLayout>
-      <div className="space-y-6 max-w-2xl">
+      <div className="max-w-3xl space-y-6">
         <div>
           <h1 className="text-headline-lg font-bold text-on-surface">Settings</h1>
-          <p className="text-body-md text-on-surface-variant mt-2">Manage your account</p>
+          <p className="mt-2 text-body-md text-on-surface-variant">
+            Manage categories and account preferences
+          </p>
         </div>
 
-        {/* Settings sections */}
         <div className="space-y-4">
-          <SettingsSection title="Account" description="Email and password">
-            <p className="text-body-md text-on-surface-variant">Placeholder: Account settings coming soon</p>
+          <SettingsSection
+            title="Categories"
+            description="Add groups and subcategories, pick emojis, or remove ones you do not need"
+          >
+            <CategoryManager />
           </SettingsSection>
 
-          <SettingsSection title="Categories" description="Manage budget categories">
-            <p className="text-body-md text-on-surface-variant">Placeholder: Category management coming soon</p>
+          <SettingsSection title="Account" description="Email and password">
+            <p className="text-body-md text-on-surface-variant">
+              Account profile editing is coming soon.
+            </p>
           </SettingsSection>
 
           <SettingsSection title="Preferences" description="App preferences">
-            <p className="text-body-md text-on-surface-variant">Placeholder: Preferences coming soon</p>
+            <p className="text-body-md text-on-surface-variant">
+              Display preferences are coming soon.
+            </p>
           </SettingsSection>
         </div>
       </div>
@@ -30,9 +48,9 @@ export default function SettingsPage() {
 
 function SettingsSection({ title, description, children }) {
   return (
-    <div className="bg-surface-container rounded-xl p-6 border border-border-hairline">
+    <div className="rounded-xl border border-border-hairline bg-surface-container p-6">
       <h2 className="text-headline-sm font-bold text-on-surface">{title}</h2>
-      <p className="text-body-sm text-on-surface-variant mt-1">{description}</p>
+      <p className="mt-1 text-body-sm text-on-surface-variant">{description}</p>
       <div className="mt-4">{children}</div>
     </div>
   )

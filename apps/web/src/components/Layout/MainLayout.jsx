@@ -8,6 +8,7 @@ const NAV = [
   { to: '/budgets', label: 'Budget & Allocation' },
   { to: '/accounts', label: 'Accounts' },
   { to: '/transactions', label: 'Transactions' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 function formatSyncLabel(accounts) {
@@ -76,6 +77,14 @@ export default function MainLayout({ children }) {
                 <span>{syncLabel}</span>
               </div>
             )}
+            <Link
+              to="/settings"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant transition-colors hover:text-on-surface"
+              title="Settings"
+              aria-label="Settings"
+            >
+              <Icon name="settings" className="text-[18px]" />
+            </Link>
             <button
               type="button"
               onClick={handleSignOut}

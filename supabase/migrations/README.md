@@ -1,6 +1,13 @@
-# migrations/lock_plaid_access_token_rpc.sql
-# Applied to project fnlejvzgcrnwcsxelnqz via Supabase MCP (name: lock_plaid_access_token_rpc)
-#
-# - Column privileges hide plaid_items.access_token from authenticated SELECT
-# - get_plaid_access_token(uuid) SECURITY DEFINER RPC for server sync
-# - ensure_user_defaults() SECURITY DEFINER RPC for profile + category seed
+# migrations/
+
+Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
+
+## 20260919_lock_plaid_access_token_rpc.sql
+- Column privileges hide `plaid_items.access_token` from authenticated SELECT
+- `get_plaid_access_token(uuid)` SECURITY DEFINER RPC for server sync
+- Baseline `ensure_user_defaults()` for profile + flat category seed
+
+## 20260919_category_hierarchy_emoji.sql
+- `categories.parent_id` + `categories.sort_order`
+- Hierarchical default categories with emoji icons
+- Updated `ensure_user_defaults()` seeds groups/subcategories and re-homes legacy flat rows

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
+import { mapCategory } from '../lib/categories'
 
 function mapTransaction(row, accountsById, categoriesById) {
   const account = accountsById[row.account_id]
@@ -14,15 +15,6 @@ function mapTransaction(row, accountsById, categoriesById) {
     accountId: row.account_id,
     account: account?.name || 'Account',
     status: row.status || 'posted',
-  }
-}
-
-function mapCategory(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    color: row.color,
-    type: row.type,
   }
 }
 
@@ -64,9 +56,16 @@ export const useTransactionStore = create((set, get) => ({
 
     set({ loading: true, error: null })
     try {
+      // Ensure hierarchy/emojis exist for current user
+      await supabase.rpc('ensure_user_defaults')
+
       const [accountsRes, categoriesRes, transactionsRes] = await Promise.all([
         supabase.from('accounts').select('*').order('created_at', { ascending: true }),
-        supabase.from('categories').select('*').order('name', { ascending: true }),
+        supabase
+          .from('categories')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true }),
         supabase
           .from('transactions')
           .select('*')
@@ -98,15 +97,110 @@ export const useTransactionStore = create((set, get) => ({
     }
   },
 
+  reloadCategories: async () => {
+    if (!supabase) return
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true })
+    if (error) throw error
+    set({ categories: (data || []).map(mapCategory) })
+  },
+
+  createCategory: async ({ name, type = 'expense', emoji = '📁', parentId = null, color = '#10b981' }) => {
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not signed in' }
+
+    const siblings = get()
+      .categories.filter((c) => (c.parentId || null) === (parentId || null))
+    const sortOrder =
+      siblings.reduce((max, c) => Math.max(max, c.sortOrder || 0), 0) + 1
+
+    const { data, error } = await supabase
+      .from('categories')
+      .insert({
+        user_id: user.id,
+        name: name.trim(),
+        type,
+        icon: emoji,
+        color,
+        parent_id: parentId,
+        custom: true,
+        sort_order: sortOrder,
+      })
+      .select('*')
+      .single()
+
+    if (error) return { success: false, error: error.message }
+    set((state) => ({
+      categories: [...state.categories, mapCategory(data)],
+    }))
+    return { success: true, category: mapCategory(data) }
+  },
+
+  updateCategory: async (categoryId, patch) => {
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+
+    const payload = {}
+    if (patch.name !== undefined) payload.name = patch.name.trim()
+    if (patch.type !== undefined) payload.type = patch.type
+    if (patch.emoji !== undefined) payload.icon = patch.emoji
+    if (patch.color !== undefined) payload.color = patch.color
+    if (patch.parentId !== undefined) payload.parent_id = patch.parentId
+    if (patch.sortOrder !== undefined) payload.sort_order = patch.sortOrder
+
+    const { data, error } = await supabase
+      .from('categories')
+      .update(payload)
+      .eq('id', categoryId)
+      .select('*')
+      .single()
+
+    if (error) return { success: false, error: error.message }
+
+    set((state) => ({
+      categories: state.categories.map((c) =>
+        c.id === categoryId ? mapCategory(data) : c
+      ),
+    }))
+    return { success: true, category: mapCategory(data) }
+  },
+
+  deleteCategory: async (categoryId) => {
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+
+    const children = get().categories.filter((c) => c.parentId === categoryId)
+    if (children.length > 0) {
+      return {
+        success: false,
+        error: 'Remove or move subcategories first before deleting this group.',
+      }
+    }
+
+    const { error } = await supabase.from('categories').delete().eq('id', categoryId)
+    if (error) return { success: false, error: error.message }
+
+    set((state) => ({
+      categories: state.categories.filter((c) => c.id !== categoryId),
+    }))
+    return { success: true }
+  },
+
   categorizeTransaction: async (transactionId, categoryId) => {
-    const category = get().categories.find((c) => c.id === categoryId)
+    const category = categoryId
+      ? get().categories.find((c) => c.id === categoryId)
+      : null
     set((state) => ({
       transactions: state.transactions.map((t) =>
         t.id === transactionId
           ? {
               ...t,
-              categoryId,
-              category: category?.name || t.category,
+              categoryId: categoryId || null,
+              category: category?.name || 'Uncategorized',
             }
           : t
       ),
@@ -116,7 +210,10 @@ export const useTransactionStore = create((set, get) => ({
 
     const { error } = await supabase
       .from('transactions')
-      .update({ category_id: categoryId, updated_at: new Date().toISOString() })
+      .update({
+        category_id: categoryId || null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', transactionId)
 
     if (error) return { success: false, error: error.message }
