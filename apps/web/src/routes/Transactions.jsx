@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTransactionStore } from '../store/transactionStore'
 import { useAccountStore } from '../store/accountStore'
 import { useBudgetStore } from '../store/budgetStore'
@@ -50,6 +50,11 @@ function AddTransactionForm({ accounts, categories, onSubmit, onCancel }) {
       onSubmit={handleSubmit}
       className="mb-2 space-y-2 rounded-lg border border-border-hairline bg-surface-container p-space-md"
     >
+      {accounts.length === 0 && (
+        <p className="text-label-md text-on-surface-variant">
+          Add an account on the Accounts page before creating transactions.
+        </p>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         <div>
           <label className="mb-0.5 block text-label-sm text-on-surface-variant">Date</label>
@@ -101,6 +106,7 @@ function AddTransactionForm({ accounts, categories, onSubmit, onCancel }) {
             onChange={(e) => setAccountId(e.target.value)}
             className={`${field} w-full`}
             required
+            disabled={accounts.length === 0}
           >
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -156,14 +162,144 @@ function AddTransactionForm({ accounts, categories, onSubmit, onCancel }) {
   )
 }
 
+function TransferForm({ accounts, onSubmit, onCancel }) {
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [fromAccountId, setFromAccountId] = useState(accounts[0]?.id || '')
+  const [toAccountId, setToAccountId] = useState(accounts[1]?.id || accounts[0]?.id || '')
+  const [amount, setAmount] = useState('')
+  const [memo, setMemo] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    const result = await onSubmit({
+      date,
+      fromAccountId,
+      toAccountId,
+      amount,
+      memo,
+    })
+    setSaving(false)
+    if (!result?.success) {
+      setError(result?.error || 'Could not create transfer')
+      return
+    }
+  }
+
+  const field =
+    'rounded border border-border-hairline bg-surface px-2 py-1 text-body-sm text-on-surface outline-none focus:border-cool-blue'
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-2 space-y-2 rounded-lg border border-border-hairline bg-surface-container p-space-md"
+    >
+      {accounts.length < 2 && (
+        <p className="text-label-md text-on-surface-variant">
+          You need at least two accounts to record a transfer.
+        </p>
+      )}
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="mb-0.5 block text-label-sm text-on-surface-variant">Date</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className={field}
+            required
+          />
+        </div>
+        <div className="min-w-[8rem]">
+          <label className="mb-0.5 block text-label-sm text-on-surface-variant">From</label>
+          <select
+            value={fromAccountId}
+            onChange={(e) => setFromAccountId(e.target.value)}
+            className={`${field} w-full`}
+            required
+            disabled={accounts.length < 2}
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-[8rem]">
+          <label className="mb-0.5 block text-label-sm text-on-surface-variant">To</label>
+          <select
+            value={toAccountId}
+            onChange={(e) => setToAccountId(e.target.value)}
+            className={`${field} w-full`}
+            required
+            disabled={accounts.length < 2}
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-0.5 block text-label-sm text-on-surface-variant">Amount</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={`${field} w-24`}
+            required
+          />
+        </div>
+        <div className="min-w-[8rem] flex-1">
+          <label className="mb-0.5 block text-label-sm text-on-surface-variant">Memo</label>
+          <input
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            className={`${field} w-full`}
+          />
+        </div>
+      </div>
+      {error && <p className="text-label-md text-status-error">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={saving || accounts.length < 2}
+          className="rounded-lg bg-primary px-3 py-1 text-label-md font-semibold text-on-primary disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save transfer'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-border-hairline px-3 py-1 text-label-md text-on-surface-variant"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+}
+
 export default function TransactionsPage() {
   const filter = useTransactionStore((state) => state.filter)
   const setFilter = useTransactionStore((state) => state.setFilter)
   const accounts = useTransactionStore((state) => state.accounts)
   const categories = useTransactionStore((state) => state.categories)
+  const transactions = useTransactionStore((state) => state.transactions)
   const loadData = useTransactionStore((state) => state.loadData)
   const hydrated = useTransactionStore((state) => state.hydrated)
   const createTransaction = useTransactionStore((state) => state.createTransaction)
+  const createTransfer = useTransactionStore((state) => state.createTransfer)
+  const getUncategorizedTransactions = useTransactionStore(
+    (state) => state.getUncategorizedTransactions
+  )
   const selectedIds = useTransactionStore((state) => state.selectedIds)
   const clearSelection = useTransactionStore((state) => state.clearSelection)
 
@@ -173,6 +309,7 @@ export default function TransactionsPage() {
 
   const [syncLoading, setSyncLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
   const [flash, setFlash] = useState(null)
 
   useEffect(() => {
@@ -181,6 +318,11 @@ export default function TransactionsPage() {
 
   const expenseTree = buildCategoryTree(categories, 'expense')
   const incomeLeaves = getLeafCategories(categories, 'income')
+
+  const uncategorizedCount = useMemo(
+    () => getUncategorizedTransactions().length,
+    [transactions, getUncategorizedTransactions]
+  )
 
   const handleSync = async () => {
     setSyncLoading(true)
@@ -207,10 +349,28 @@ export default function TransactionsPage() {
   }
 
   const handleAdd = async (values) => {
-    const result = await createTransaction(values)
+    const result = await createTransaction({
+      date: values.date,
+      payee: values.payee,
+      amount: values.amount,
+      accountId: values.accountId,
+      categoryId: values.categoryId,
+      memo: values.memo,
+      inflow: values.inflow,
+    })
     if (result.success) {
       setShowAdd(false)
       setFlash('Transaction added')
+      await loadBudgets()
+    }
+    return result
+  }
+
+  const handleTransfer = async (values) => {
+    const result = await createTransfer(values)
+    if (result.success) {
+      setShowTransfer(false)
+      setFlash('Transfer recorded')
       await loadBudgets()
     }
     return result
@@ -227,10 +387,24 @@ export default function TransactionsPage() {
             <button
               type="button"
               className={toolbarBtn}
-              onClick={() => setShowAdd((v) => !v)}
+              onClick={() => {
+                setShowTransfer(false)
+                setShowAdd((v) => !v)
+              }}
             >
               <Icon name="add" className="text-[16px]" />
               Add Transaction
+            </button>
+            <button
+              type="button"
+              className={toolbarBtn}
+              onClick={() => {
+                setShowAdd(false)
+                setShowTransfer((v) => !v)
+              }}
+            >
+              <Icon name="swap_horiz" className="text-[16px]" />
+              Transfer
             </button>
             <button
               type="button"
@@ -296,11 +470,26 @@ export default function TransactionsPage() {
                   </button>
                 </span>
               )}
-              {(filter.search || filter.category) && (
+              {filter.uncategorizedOnly && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-surface-container-high px-2 py-0.5 text-label-sm text-on-surface">
+                  Uncategorized
+                  <button
+                    type="button"
+                    onClick={() => setFilter({ uncategorizedOnly: false })}
+                    aria-label="Clear uncategorized filter"
+                    className="text-on-surface-variant hover:text-on-surface"
+                  >
+                    <Icon name="close" className="text-[12px]" />
+                  </button>
+                </span>
+              )}
+              {(filter.search || filter.category || filter.uncategorizedOnly) && (
                 <button
                   type="button"
-                  onClick={() => setFilter({ search: '', category: null })}
-                  aria-label="Clear search"
+                  onClick={() =>
+                    setFilter({ search: '', category: null, uncategorizedOnly: false })
+                  }
+                  aria-label="Clear all filters"
                   className="text-on-surface-variant hover:text-on-surface"
                 >
                   <Icon name="close" className="text-[14px]" />
@@ -349,6 +538,22 @@ export default function TransactionsPage() {
           </div>
         </div>
 
+        {uncategorizedCount > 0 && !filter.uncategorizedOnly && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-status-warning/30 bg-status-warning/10 px-3 py-2">
+            <p className="text-label-md text-on-surface">
+              {uncategorizedCount} transaction{uncategorizedCount === 1 ? '' : 's'} need
+              categorization
+            </p>
+            <button
+              type="button"
+              onClick={() => setFilter({ uncategorizedOnly: true })}
+              className="rounded-lg bg-primary px-3 py-1 text-label-md font-semibold text-on-primary"
+            >
+              Show uncategorized
+            </button>
+          </div>
+        )}
+
         {flash && (
           <p className="text-label-md text-sage-accent">{flash}</p>
         )}
@@ -359,6 +564,14 @@ export default function TransactionsPage() {
             categories={categories}
             onSubmit={handleAdd}
             onCancel={() => setShowAdd(false)}
+          />
+        )}
+
+        {showTransfer && (
+          <TransferForm
+            accounts={accounts}
+            onSubmit={handleTransfer}
+            onCancel={() => setShowTransfer(false)}
           />
         )}
 
