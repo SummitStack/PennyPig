@@ -196,6 +196,8 @@ export const CATEGORY_EMOJIS = EMOJI_CATEGORIES.filter((c) => c.id !== 'recent')
   (c) => c.emojis.map((x) => x.e)
 )
 
+export const BUDGET_PARENT_NAMES = ['Needs', 'Wants', 'Savings Goals', 'Other']
+
 export function mapCategory(row) {
   return {
     id: row.id,
@@ -208,7 +210,25 @@ export function mapCategory(row) {
     sortOrder: row.sort_order ?? 0,
     isCcPayment: Boolean(row.is_cc_payment),
     linkedAccountId: row.linked_account_id || null,
+    isSystem: Boolean(row.is_system),
   }
+}
+
+/** Locked budget parents (Needs / Wants / Savings Goals / Other). */
+export function isBudgetParent(cat) {
+  if (!cat) return false
+  return Boolean(cat.isSystem) || BUDGET_PARENT_NAMES.includes(cat.name)
+}
+
+/** Role in the budget hierarchy: parent → group → category. */
+export function getCategoryRole(categories, cat) {
+  if (isBudgetParent(cat)) return 'parent'
+  const parent = cat.parentId ? categories.find((c) => c.id === cat.parentId) : null
+  if (parent && isBudgetParent(parent)) {
+    if (parent.name === 'Savings Goals') return 'category'
+    return 'group'
+  }
+  return 'category'
 }
 
 /** Top-level categories (groups or standalone leaves). */
@@ -237,11 +257,28 @@ export function getLeafCategories(categories, type = 'expense') {
 }
 
 export function buildCategoryTree(categories, type = 'expense') {
-  const roots = getRootCategories(categories).filter((c) => !type || c.type === type)
-  return roots.map((root) => ({
-    ...root,
-    children: getChildCategories(categories, root.id).filter(
-      (c) => !type || c.type === type
-    ),
-  }))
+  const filtered = categories.filter((c) => !type || c.type === type)
+
+  const build = (parentId) =>
+    filtered
+      .filter((c) => (c.parentId || null) === (parentId || null))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .map((node) => ({
+        ...node,
+        children: build(node.id),
+      }))
+
+  return build(null)
+}
+
+/** Depth of a category in the tree (0 = root). */
+export function getCategoryDepth(categories, categoryId) {
+  let depth = 0
+  let cur = categories.find((c) => c.id === categoryId)
+  while (cur?.parentId) {
+    depth += 1
+    cur = categories.find((c) => c.id === cur.parentId)
+    if (depth > 10) break
+  }
+  return depth
 }

@@ -71,7 +71,7 @@ export default function BudgetsPage() {
   return (
     <MainLayout>
       <div className="mb-space-md flex flex-col justify-between gap-space-sm md:flex-row md:items-center">
-        <div className="flex items-center gap-space-sm">
+        <div className="flex flex-wrap items-center gap-space-sm">
           <div className="flex items-center rounded-lg border border-border-hairline bg-surface-container-high p-0.5">
             <button
               type="button"
@@ -92,10 +92,6 @@ export default function BudgetsPage() {
             >
               <Icon name="chevron_right" className="text-[18px]" />
             </button>
-          </div>
-          <div className="hidden items-center gap-space-xs rounded-lg border border-border-hairline bg-surface-container-high/50 px-2 py-1 text-label-sm text-on-surface-variant sm:flex">
-            <Icon name="verified" className="text-[14px] text-sage-accent" />
-            <span>Budget vs activity</span>
           </div>
         </div>
 
@@ -128,7 +124,10 @@ export default function BudgetsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-space-md lg:grid-cols-12">
+      <div
+        id="budget-allocation"
+        className="grid grid-cols-1 items-start gap-space-md lg:grid-cols-12"
+      >
         <div className="lg:col-span-8">
           <BudgetAllocationTable />
         </div>

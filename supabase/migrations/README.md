@@ -22,3 +22,15 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - Transfers/splits flags on transactions + `transaction_splits`
 - `payee_category_rules`, `category_targets`, `account_reconciliations`
 - Category CC payment flags: `is_cc_payment`, `linked_account_id`
+
+## 20260919_category_packs_defaults.sql
+- Keeps original Living / Food & Dining seed (reverted from temporary Housing seed)
+- Opt-in idea packs (removed in favor of locked parents — see below)
+
+## 20260919_budget_locked_parents.sql
+- Adds `categories.is_system` for locked budget parents
+- Seeds exactly four parents: **Needs**, **Wants**, **Savings Goals**, **Other**
+- Remounts default groups under parents (Living/Transportation/Subscriptions → Needs; Food & Dining/Entertainment/Shopping → Wants)
+- Savings categories (Emergency Fund, Vacation) hang directly under Savings Goals
+- Orphan top-level expense categories are moved under **Other**
+- `ensure_user_defaults()` updated; parents cannot be renamed, moved, or deleted in the app

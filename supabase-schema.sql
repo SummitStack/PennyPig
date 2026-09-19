@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
   sort_order integer NOT NULL DEFAULT 0,
   is_cc_payment boolean NOT NULL DEFAULT false,
   linked_account_id uuid REFERENCES public.accounts(id) ON DELETE SET NULL,
+  is_system boolean NOT NULL DEFAULT false,
   created_at timestamptz DEFAULT now(),
   UNIQUE(user_id, name)
 );
