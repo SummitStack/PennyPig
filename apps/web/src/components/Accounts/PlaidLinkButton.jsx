@@ -53,6 +53,17 @@ export default function PlaidLinkButton() {
         if (!exchangeResponse.ok) throw new Error(exchangeData.error)
 
         await Promise.all([loadAccounts(), loadData(), loadBudgets()])
+
+        // Ensure CC payment categories for any newly linked credit accounts
+        const ensureCc = useTransactionStore.getState().ensureCreditCardCategory
+        const accounts = useAccountStore.getState().linkedAccounts
+        for (const account of accounts) {
+          if (account.type === 'credit') {
+            await ensureCc(account)
+          }
+        }
+        await Promise.all([loadAccounts(), loadData()])
+
         alert(
           `Accounts connected${
             exchangeData.synced_transactions

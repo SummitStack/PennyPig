@@ -16,6 +16,7 @@ async function hydrateAppData() {
     useAccountStore.getState().loadAccounts(),
     useBudgetStore.getState().loadBudgets(),
   ])
+  await useBudgetStore.getState().loadBudgetHistory()
 }
 
 export const useAuthStore = create((set) => ({

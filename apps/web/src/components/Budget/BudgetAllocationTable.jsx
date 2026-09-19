@@ -18,23 +18,24 @@ import { useBudgetStore } from '../../store/budgetStore'
 import { useTransactionStore } from '../../store/transactionStore'
 import {
   buildCategoryTree,
+  getLeafCategories,
   getCategoryRole,
   isBudgetParent,
 } from '../../lib/categories'
 import CategoryForm from '../Categories/CategoryForm'
+import TargetModal from './TargetModal'
+import MoveMoneyModal from './MoveMoneyModal'
 import Icon from '../ui/Icon'
 
-function statusDot(budgeted, activity) {
-  if (budgeted === 0 && activity === 0) return 'bg-outline-variant'
-  if (activity > budgeted) return 'bg-status-error'
-  if (budgeted > 0 && activity / budgeted > 0.85) return 'bg-status-warning'
+function statusDot(available) {
+  if (available < 0) return 'bg-status-error'
+  if (available === 0) return 'bg-outline-variant'
   return 'bg-status-success'
 }
 
-function statusText(budgeted, activity) {
-  if (activity > budgeted) return 'text-status-error'
-  if (budgeted > 0 && activity / budgeted > 0.85) return 'text-status-warning'
-  if (budgeted === 0) return 'text-on-surface-variant'
+function statusText(available) {
+  if (available < 0) return 'text-status-error'
+  if (available === 0) return 'text-on-surface-variant'
   return 'text-status-success'
 }
 
@@ -146,6 +147,10 @@ function CategoryRowContent({
   onToggleExpand,
   budgeted,
   activity,
+  available,
+  carryover,
+  underfunded,
+  hasTarget,
   editingCell,
   editValue,
   setEditingCell,
@@ -154,10 +159,11 @@ function CategoryRowContent({
   manageMode,
   onEditCategory,
   onAddChild,
+  onOpenTarget,
+  onCover,
   dragHandleProps,
   isOverlay = false,
 }) {
-  const available = budgeted - activity
   const isParent = role === 'parent'
   const isLeaf = role === 'category'
   const pad = depth === 0 ? '' : depth === 1 ? 'pl-5' : 'pl-10'
@@ -230,8 +236,29 @@ function CategoryRowContent({
           >
             {category.name}
           </button>
+        ) : isGroup ? (
+          <span className={`min-w-0 truncate text-body-sm ${nameClass}`}>
+            {category.name}
+          </span>
         ) : (
-          <span className={`min-w-0 truncate text-body-sm ${nameClass}`}>{category.name}</span>
+          <button
+            type="button"
+            onClick={() => onOpenTarget?.(category)}
+            className="flex min-w-0 items-center gap-0.5 truncate rounded px-1 text-left text-body-sm font-medium text-on-surface hover:bg-surface-container"
+            title="Set target"
+          >
+            <span className="truncate">{category.name}</span>
+            {hasTarget && (
+              <Icon name="flag" className="shrink-0 text-[12px] text-sage-accent" />
+            )}
+          </button>
+        )}
+
+        {!isGroup && !manageMode && underfunded > 0 && (
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-warning"
+            title={`Underfunded by $${underfunded.toFixed(0)}`}
+          />
         )}
 
         {canAddChild && (
@@ -270,18 +297,31 @@ function CategoryRowContent({
       </div>
       <div
         className={`col-span-3 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
-          budgeted,
-          activity
+          available
         )}`}
       >
+        {carryover > 0 && !isOverlay && (
+          <span className="text-label-sm text-on-surface-variant" title="Carryover">
+            +{carryover.toFixed(0)}
+          </span>
+        )}
         <span>
           {available < 0 ? '-' : ''}${Math.abs(available).toFixed(0)}
         </span>
         <span
-          className={`h-1.5 w-1.5 rounded-full ${statusDot(budgeted, activity)} ${
+          className={`h-1.5 w-1.5 rounded-full ${statusDot(available)} ${
             available < 0 ? 'animate-pulse' : ''
           }`}
         />
+        {!isGroup && !manageMode && !isOverlay && available < 0 && (
+          <button
+            type="button"
+            onClick={() => onCover?.(category)}
+            className="ml-1 rounded px-1 py-0.5 text-label-sm font-semibold text-status-error hover:bg-status-error/10"
+          >
+            Cover
+          </button>
+        )}
       </div>
     </div>
   )
@@ -326,8 +366,19 @@ export default function BudgetAllocationTable() {
   const updateBudget = useBudgetStore((state) => state.updateBudget)
   const getBudgetedFor = useBudgetStore((state) => state.getBudgetedFor)
   const getActivityFor = useBudgetStore((state) => state.getActivityFor)
+  const getAvailableFor = useBudgetStore((state) => state.getAvailableFor)
+  const getCarryoverFor = useBudgetStore((state) => state.getCarryoverFor)
+  const getUnderfundedFor = useBudgetStore((state) => state.getUnderfundedFor)
+  const getTargetFor = useBudgetStore((state) => state.getTargetFor)
   const getTotalBudgeted = useBudgetStore((state) => state.getTotalBudgeted)
   const getTotalActivity = useBudgetStore((state) => state.getTotalActivity)
+  const getTotalAvailable = useBudgetStore((state) => state.getTotalAvailable)
+  const copyFromLastMonth = useBudgetStore((state) => state.copyFromLastMonth)
+  const autoAssignUnderfunded = useBudgetStore((state) => state.autoAssignUnderfunded)
+  const moveMoney = useBudgetStore((state) => state.moveMoney)
+  const coverOverspending = useBudgetStore((state) => state.coverOverspending)
+  const setTarget = useBudgetStore((state) => state.setTarget)
+  const clearTarget = useBudgetStore((state) => state.clearTarget)
   const expandedGroups = useBudgetStore((state) => state.expandedGroups)
   const toggleGroup = useBudgetStore((state) => state.toggleGroup)
 
@@ -339,6 +390,9 @@ export default function BudgetAllocationTable() {
   const [flash, setFlash] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [toolbarBusy, setToolbarBusy] = useState(false)
+  const [targetCategory, setTargetCategory] = useState(null)
+  const [moveModal, setMoveModal] = useState(null)
 
   const categories = draftCategories || storeCategories
 
@@ -401,6 +455,38 @@ export default function BudgetAllocationTable() {
       return children.reduce((sum, child) => sum + draftActivityFor(child.id), 0)
     }
     return getActivityFor(categoryId)
+  }
+
+  const draftAvailableFor = (categoryId) => getAvailableFor(categoryId)
+  const draftCarryoverFor = (categoryId) => getCarryoverFor(categoryId)
+
+  const leafCategories = useMemo(
+    () => getLeafCategories(categories, 'expense'),
+    [categories]
+  )
+
+  const handleCopyLastMonth = async () => {
+    setToolbarBusy(true)
+    const result = await copyFromLastMonth()
+    setToolbarBusy(false)
+    setFlash(result?.success ? 'Copied from last month' : result?.error || 'Copy failed')
+  }
+
+  const handleAutoAssign = async () => {
+    setToolbarBusy(true)
+    const result = await autoAssignUnderfunded()
+    setToolbarBusy(false)
+    setFlash(result?.success ? 'Assigned underfunded categories' : result?.error || 'Assign failed')
+  }
+
+  const handleCover = (category) => {
+    const available = getAvailableFor(category.id)
+    if (available >= 0) return
+    setMoveModal({
+      toCategoryId: category.id,
+      amount: -available,
+      categoryName: category.name,
+    })
   }
 
   const handleSaveBudget = async (categoryId) => {
@@ -543,7 +629,7 @@ export default function BudgetAllocationTable() {
 
   const totalBudgeted = getTotalBudgeted()
   const totalActivity = getTotalActivity()
-  const totalAvailable = totalBudgeted - totalActivity
+  const totalAvailable = getTotalAvailable()
 
   const rowProps = (row) => ({
     category: row.category,
@@ -554,6 +640,10 @@ export default function BudgetAllocationTable() {
     onToggleExpand: toggleGroup,
     budgeted: draftBudgetedFor(row.id),
     activity: draftActivityFor(row.id),
+    available: draftAvailableFor(row.id),
+    carryover: draftCarryoverFor(row.id),
+    underfunded: row.isGroup ? 0 : getUnderfundedFor(row.id),
+    hasTarget: Boolean(getTargetFor(row.id)),
     editingCell,
     editValue,
     setEditingCell,
@@ -574,6 +664,8 @@ export default function BudgetAllocationTable() {
         parentId,
         category: { emoji: '📁', type: 'expense', parentId },
       }),
+    onOpenTarget: (cat) => setTargetCategory(cat),
+    onCover: handleCover,
   })
 
   const panelParents =
@@ -631,6 +723,35 @@ export default function BudgetAllocationTable() {
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
+        </div>
+      )}
+
+      {!manageMode && (
+        <div className="mb-2 flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={handleCopyLastMonth}
+            disabled={toolbarBusy}
+            className="rounded-lg border border-border-hairline bg-surface-container px-2 py-1 text-label-md font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+          >
+            Copy last month
+          </button>
+          <button
+            type="button"
+            onClick={handleAutoAssign}
+            disabled={toolbarBusy}
+            className="rounded-lg border border-border-hairline bg-surface-container px-2 py-1 text-label-md font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+          >
+            Auto-Assign underfunded
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoveModal({})}
+            disabled={toolbarBusy}
+            className="rounded-lg border border-border-hairline bg-surface-container px-2 py-1 text-label-md font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+          >
+            Move money
+          </button>
         </div>
       )}
 
@@ -748,10 +869,34 @@ export default function BudgetAllocationTable() {
         <div className="col-span-2 text-center text-body-md text-on-surface-variant">
           ${totalActivity.toFixed(0)}
         </div>
-        <div className="col-span-3 text-right text-body-md text-sage-accent">
-          ${totalAvailable.toFixed(0)}
+        <div
+          className={`col-span-3 text-right text-body-md ${
+            totalAvailable < 0 ? 'text-status-error' : 'text-sage-accent'
+          }`}
+        >
+          {totalAvailable < 0 ? '-' : ''}${Math.abs(totalAvailable).toFixed(0)}
         </div>
       </div>
+
+      {targetCategory && (
+        <TargetModal
+          category={targetCategory}
+          target={getTargetFor(targetCategory.id)}
+          onSave={(values) => setTarget(targetCategory.id, values)}
+          onClear={() => clearTarget(targetCategory.id)}
+          onClose={() => setTargetCategory(null)}
+        />
+      )}
+
+      {moveModal && (
+        <MoveMoneyModal
+          categories={leafCategories}
+          coverPreset={moveModal.toCategoryId ? moveModal : null}
+          onMove={moveMoney}
+          onCover={coverOverspending}
+          onClose={() => setMoveModal(null)}
+        />
+      )}
     </div>
   )
 }

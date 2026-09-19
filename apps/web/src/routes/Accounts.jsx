@@ -1,11 +1,16 @@
+import { useState } from 'react'
 import MainLayout from '../components/Layout/MainLayout'
 import { useAccountStore } from '../store/accountStore'
 import PlaidLinkButton from '../components/Accounts/PlaidLinkButton'
 import AccountCard from '../components/Accounts/AccountCard'
+import ManualAccountForm from '../components/Accounts/ManualAccountForm'
+import CsvImportSection from '../components/Accounts/CsvImportSection'
 import Icon from '../components/ui/Icon'
 
 export default function AccountsPage() {
   const linkedAccounts = useAccountStore((state) => state.linkedAccounts)
+  const [showManualForm, setShowManualForm] = useState(false)
+
   const totalBalance = linkedAccounts.reduce((sum, acc) => {
     const balance = Number(acc.balance) || 0
     return acc.type === 'credit' ? sum - Math.abs(balance) : sum + balance
@@ -18,10 +23,19 @@ export default function AccountsPage() {
           <div>
             <h1 className="text-headline-lg font-bold text-on-surface">Accounts</h1>
             <p className="mt-space-sm text-body-md text-on-surface-variant">
-              Connected bank accounts
+              Connected and manual accounts
             </p>
           </div>
-          <PlaidLinkButton />
+          <div className="flex flex-wrap items-center gap-space-sm">
+            <PlaidLinkButton />
+            <button
+              type="button"
+              onClick={() => setShowManualForm(true)}
+              className="rounded-xl border border-border-hairline bg-surface-base px-space-lg py-space-md font-medium text-on-surface transition-colors hover:bg-surface-container-high"
+            >
+              Add manual account
+            </button>
+          </div>
         </div>
 
         <div className="rounded-xl border border-border-hairline bg-surface-base p-space-lg shadow-sm">
@@ -42,7 +56,7 @@ export default function AccountsPage() {
 
         <div>
           <h2 className="mb-space-md text-headline-sm font-bold text-on-surface">
-            Connected Accounts
+            Accounts
           </h2>
           <div className="grid grid-cols-1 gap-space-lg md:grid-cols-2">
             {linkedAccounts.map((account) => (
@@ -53,14 +67,20 @@ export default function AccountsPage() {
           {linkedAccounts.length === 0 && (
             <div className="rounded-xl border border-border-hairline bg-surface-base p-space-xl text-center">
               <Icon name="account_balance" className="mb-space-md text-[32px] text-on-surface-variant" />
-              <p className="text-body-md text-on-surface-variant">No accounts connected yet</p>
+              <p className="text-body-md text-on-surface-variant">No accounts yet</p>
               <p className="mt-space-sm text-body-sm text-on-surface-variant">
-                Click Connect Account to link your bank accounts
+                Connect a bank or add a manual account to get started
               </p>
             </div>
           )}
         </div>
+
+        <CsvImportSection />
       </div>
+
+      {showManualForm && (
+        <ManualAccountForm onClose={() => setShowManualForm(false)} />
+      )}
     </MainLayout>
   )
 }

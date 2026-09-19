@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
       balance: account.balances?.current ?? 0,
       mask: account.mask || null,
       institution_name: itemRow.institution_name,
+      is_manual: false,
+      on_budget: true,
       last_synced: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }))

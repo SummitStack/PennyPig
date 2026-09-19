@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useBudgetStore } from '../store/budgetStore'
 import { useAccountStore } from '../store/accountStore'
 import { useTransactionStore } from '../store/transactionStore'
@@ -25,12 +25,17 @@ export default function BudgetsPage() {
   const currentMonth = useBudgetStore((state) => state.currentMonth)
   const setCurrentMonth = useBudgetStore((state) => state.setCurrentMonth)
   const loadBudgets = useBudgetStore((state) => state.loadBudgets)
+  const loadBudgetHistory = useBudgetStore((state) => state.loadBudgetHistory)
   const getReadyToAssign = useBudgetStore((state) => state.getReadyToAssign)
   const accounts = useAccountStore((state) => state.linkedAccounts)
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadData = useTransactionStore((state) => state.loadData)
   const [syncLoading, setSyncLoading] = useState(false)
   const readyToAssign = getReadyToAssign()
+
+  useEffect(() => {
+    loadBudgetHistory()
+  }, [loadBudgetHistory])
 
   const monthName = new Date(`${currentMonth}-01`).toLocaleDateString('en-US', {
     month: 'long',
@@ -90,17 +95,31 @@ export default function BudgetsPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-space-md rounded-lg border border-sage-accent/30 bg-sage-accent/10 px-space-md py-2 md:justify-end">
+        <div
+          className={`flex items-center justify-between gap-space-md rounded-lg border px-space-md py-2 md:justify-end ${
+            readyToAssign < 0
+              ? 'border-status-error/30 bg-status-error/10'
+              : 'border-sage-accent/30 bg-sage-accent/10'
+          }`}
+        >
           <div>
-            <div className="text-label-sm font-bold tracking-wider text-sage-accent">
+            <div
+              className={`text-label-sm font-bold tracking-wider ${
+                readyToAssign < 0 ? 'text-status-error' : 'text-sage-accent'
+              }`}
+            >
               READY TO ASSIGN
             </div>
             <div className="text-label-sm text-on-surface-variant">
-              Income this month minus budgeted
+              Income + leftover − overspend − assigned
             </div>
           </div>
-          <div className="text-headline-md font-bold text-sage-accent">
-            ${readyToAssign.toFixed(2)}
+          <div
+            className={`text-headline-md font-bold ${
+              readyToAssign < 0 ? 'text-status-error' : 'text-sage-accent'
+            }`}
+          >
+            {readyToAssign < 0 ? '-' : ''}${Math.abs(readyToAssign).toFixed(2)}
           </div>
         </div>
       </div>

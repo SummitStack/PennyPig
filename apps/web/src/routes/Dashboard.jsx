@@ -29,29 +29,19 @@ function formatMoneyExact(n) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const accounts = useAccountStore((state) => state.linkedAccounts)
-  const transactions = useTransactionStore((state) => state.transactions)
   const categories = useTransactionStore((state) => state.categories)
   const {
-    currentMonth,
     getBudgetedFor,
     getActivityFor,
     getTotalSpent,
     getTotalBudgeted,
     getReadyToAssign,
+    getIncomeThisMonth,
   } = useBudgetStore()
 
   const expenseLeaves = getLeafCategories(categories, 'expense')
-  const incomeIds = new Set(
-    categories.filter((c) => c.type === 'income').map((c) => c.id)
-  )
 
-  const moneyIn = transactions.reduce((sum, txn) => {
-    const d = new Date(txn.date)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    if (key !== currentMonth) return sum
-    if (incomeIds.has(txn.categoryId)) return sum + Number(txn.amount || 0)
-    return sum
-  }, 0)
+  const moneyIn = getIncomeThisMonth()
 
   const moneyOut = getTotalSpent()
   const readyToAssign = getReadyToAssign()
@@ -129,20 +119,44 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-primary/30 bg-primary/10 p-space-lg shadow-sm">
-            <div className="pointer-events-none absolute right-0 top-0 -mr-10 -mt-10 h-32 w-32 rounded-full bg-primary/20 blur-2xl" />
+          <div
+            className={`relative flex flex-col justify-between overflow-hidden rounded-xl border p-space-lg shadow-sm ${
+              readyToAssign < 0
+                ? 'border-status-error/30 bg-status-error/10'
+                : 'border-sage-accent/30 bg-sage-accent/10'
+            }`}
+          >
+            <div
+              className={`pointer-events-none absolute right-0 top-0 -mr-10 -mt-10 h-32 w-32 rounded-full blur-2xl ${
+                readyToAssign < 0 ? 'bg-status-error/20' : 'bg-sage-accent/20'
+              }`}
+            />
             <div className="mb-space-md flex items-center justify-between">
-              <span className="text-label-md font-semibold uppercase tracking-wider text-primary">
+              <span
+                className={`text-label-md font-semibold uppercase tracking-wider ${
+                  readyToAssign < 0 ? 'text-status-error' : 'text-sage-accent'
+                }`}
+              >
                 Ready to Assign
               </span>
-              <Icon name="account_balance_wallet" className="text-[20px] text-primary" />
+              <Icon
+                name="account_balance_wallet"
+                className={`text-[20px] ${
+                  readyToAssign < 0 ? 'text-status-error' : 'text-sage-accent'
+                }`}
+              />
             </div>
             <div>
-              <div className="mb-space-xs text-headline-lg font-bold text-primary">
-                {formatMoneyExact(readyToAssign)}
+              <div
+                className={`mb-space-xs text-headline-lg font-bold ${
+                  readyToAssign < 0 ? 'text-status-error' : 'text-sage-accent'
+                }`}
+              >
+                {readyToAssign < 0 ? '-' : ''}
+                {formatMoneyExact(Math.abs(readyToAssign))}
               </div>
               <div className="text-body-sm font-medium text-on-surface-variant">
-                Income minus budgeted
+                Income + leftover − overspend − assigned
               </div>
             </div>
           </div>
