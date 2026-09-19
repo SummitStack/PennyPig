@@ -2,8 +2,8 @@
 
 ## 1. Create Vercel Account
 - Go to **vercel.com**
-- Sign up with GitHub (ridings82@gmail.com)
-- Authorize Vercel to access SummitStack org
+- Sign up with GitHub
+- Authorize Vercel to access the SummitStack org
 
 ## 2. Import Repository
 - Click **"Add New..."** → **"Project"**
@@ -16,17 +16,20 @@
 - Click **Continue**
 
 ## 4. Environment Variables
-Add these before deploying:
-- **PLAID_CLIENT_ID**: `6aad3230800fce000da2fca0`
-- **PLAID_SECRET**: `8d86c4c32e1124c5dfa0d4b5d11cb3`
-- **PLAID_ENV**: `sandbox`
+Add these before deploying (values from your Supabase + Plaid dashboards):
 
-(You'll replace these with real credentials when ready for production)
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `PLAID_CLIENT_ID`
+- `PLAID_SECRET`
+- `PLAID_ENV` (`sandbox` for development)
+
+Do **not** commit real secrets to the repo. Keep them in Vercel project settings only.
 
 ## 5. Deploy
 - Click **"Deploy"**
-- Wait ~3-5 min for build
-- You'll get a URL like `pennypig-xyz.vercel.app`
+- Wait for the build to finish
+- You'll get a URL like `penny-pig-web.vercel.app`
 
 ## 6. Connect Custom Domain (pennypig.io)
 - In Vercel dashboard, go to **Settings** → **Domains**
@@ -35,7 +38,7 @@ Add these before deploying:
 
 ## 7. Test
 - Visit deployed URL
-- Try signup/login
-- Test Plaid connection (sandbox mode)
+- Try signup/login (requires Supabase env)
+- Test Plaid connection in sandbox (requires Plaid env + signed-in user)
 
-Done. Vercel auto-deploys on every GitHub push.
+Done. Vercel auto-deploys on every GitHub push to the connected branch.

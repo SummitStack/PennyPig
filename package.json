@@ -9,11 +9,6 @@
   "scripts": {
     "dev": "cd apps/web && npm run dev",
     "build": "cd apps/web && npm run build",
-    "preview": "cd apps/web && npm run preview"
-  },
-  "dependencies": {
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
-    "node-fetch": "^3.3.2"
+    "start": "cd apps/web && npm run start"
   }
 }

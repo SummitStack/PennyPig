@@ -1,31 +1,30 @@
 import { useState } from 'react'
-import { useAuthStore } from '../../store/authStore'
 import { useAccountStore } from '../../store/accountStore'
+import { authFetch } from '../../lib/authFetch'
 
 export default function AccountCard({ account }) {
-  const user = useAuthStore(state => state.user)
   const [syncing, setSyncing] = useState(false)
-  const removeAccount = useAccountStore(state => state.removeAccount)
-  const syncAccount = useAccountStore(state => state.syncAccount)
+  const removeAccount = useAccountStore((state) => state.removeAccount)
+  const syncAccount = useAccountStore((state) => state.syncAccount)
 
   const handleSync = async () => {
+    if (!account.accessToken) {
+      alert('This account has no Plaid access token. Reconnect it with Plaid Link to sync.')
+      return
+    }
+
     setSyncing(true)
     try {
-      const response = await fetch(`/api/plaid/transactions`, {
+      const response = await authFetch('/api/plaid/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          access_token: 'demo-token', // Replace with real access token from backend
-          user_id: user?.id || 'demo-user'
-        })
+        body: JSON.stringify({ access_token: account.accessToken }),
       })
 
-      if (response.ok) {
-        syncAccount(account.id)
-        alert(`✓ ${account.name} synced successfully`)
-      } else {
-        alert('Sync failed')
-      }
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Sync failed')
+
+      syncAccount(account.id)
+      alert(`${account.name} synced (${data.transactions?.length ?? 0} transactions fetched)`)
     } catch (error) {
       console.error('Sync error:', error)
       alert(`Error: ${error.message}`)
@@ -41,7 +40,7 @@ export default function AccountCard({ account }) {
   }
 
   const lastSyncTime = account.lastSynced
-    ? Math.round((Date.now() - account.lastSynced) / 60000)
+    ? Math.round((Date.now() - new Date(account.lastSynced).getTime()) / 60000)
     : null
 
   return (
@@ -74,7 +73,7 @@ export default function AccountCard({ account }) {
         <div className="flex justify-between">
           <span className="text-body-sm text-on-surface-variant">Balance</span>
           <span className={`text-body-md font-bold ${account.balance < 0 ? 'text-status-error' : 'text-status-success'}`}>
-            ${account.balance.toFixed(2)}
+            ${Number(account.balance).toFixed(2)}
           </span>
         </div>
       </div>

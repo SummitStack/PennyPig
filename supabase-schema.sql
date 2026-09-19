@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE TABLE IF NOT EXISTS public.accounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  account_type text NOT NULL CHECK (account_type IN ('credit', 'debit', 'savings')),
+  account_type text NOT NULL CHECK (account_type IN ('credit', 'debit', 'checking', 'savings', 'other')),
   name text NOT NULL,
   plaid_account_id text UNIQUE,
   balance numeric(15,2) DEFAULT 0,

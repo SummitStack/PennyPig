@@ -1,23 +1,39 @@
 import { create } from 'zustand'
-import { supabase } from '../lib/supabase'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 export const useAuthStore = create((set) => ({
   user: null,
   loading: true,
   error: null,
+  configured: isSupabaseConfigured,
 
-  // Initialize auth state on app load
   initAuth: async () => {
+    if (!supabase) {
+      set({ user: null, loading: false, error: 'Supabase is not configured' })
+      return
+    }
+
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      set({ user: session?.user || null, loading: false })
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      set({ user: session?.user || null, loading: false, error: null })
+
+      supabase.auth.onAuthStateChange((_event, nextSession) => {
+        set({ user: nextSession?.user || null, loading: false })
+      })
     } catch (err) {
       set({ error: err.message, loading: false })
     }
   },
 
-  // Sign up
   signUp: async (email, password) => {
+    if (!supabase) {
+      const message = 'Supabase is not configured'
+      set({ error: message, loading: false })
+      return { success: false, error: message }
+    }
+
     set({ loading: true, error: null })
     try {
       const { data, error } = await supabase.auth.signUp({ email, password })
@@ -30,8 +46,13 @@ export const useAuthStore = create((set) => ({
     }
   },
 
-  // Sign in
   signIn: async (email, password) => {
+    if (!supabase) {
+      const message = 'Supabase is not configured'
+      set({ error: message, loading: false })
+      return { success: false, error: message }
+    }
+
     set({ loading: true, error: null })
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -44,8 +65,12 @@ export const useAuthStore = create((set) => ({
     }
   },
 
-  // Sign out
   signOut: async () => {
+    if (!supabase) {
+      set({ user: null, loading: false })
+      return { success: true }
+    }
+
     set({ loading: true, error: null })
     try {
       const { error } = await supabase.auth.signOut()
@@ -58,8 +83,13 @@ export const useAuthStore = create((set) => ({
     }
   },
 
-  // Reset password
   resetPassword: async (email) => {
+    if (!supabase) {
+      const message = 'Supabase is not configured'
+      set({ error: message, loading: false })
+      return { success: false, error: message }
+    }
+
     set({ loading: true, error: null })
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email)
@@ -70,5 +100,7 @@ export const useAuthStore = create((set) => ({
       set({ error: err.message, loading: false })
       return { success: false, error: err.message }
     }
-  }
+  },
+
+  clearError: () => set({ error: null }),
 }))
