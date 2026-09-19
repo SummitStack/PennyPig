@@ -196,6 +196,8 @@ export const CATEGORY_EMOJIS = EMOJI_CATEGORIES.filter((c) => c.id !== 'recent')
   (c) => c.emojis.map((x) => x.e)
 )
 
+export const BUDGET_PARENT_NAMES = ['Needs', 'Wants', 'Savings Goals', 'Other']
+
 export function mapCategory(row) {
   return {
     id: row.id,
@@ -206,7 +208,25 @@ export function mapCategory(row) {
     parentId: row.parent_id || null,
     custom: Boolean(row.custom),
     sortOrder: row.sort_order ?? 0,
+    isSystem: Boolean(row.is_system),
   }
+}
+
+/** Locked budget parents (Needs / Wants / Savings Goals / Other). */
+export function isBudgetParent(cat) {
+  if (!cat) return false
+  return Boolean(cat.isSystem) || BUDGET_PARENT_NAMES.includes(cat.name)
+}
+
+/** Role in the budget hierarchy: parent → group → category. */
+export function getCategoryRole(categories, cat) {
+  if (isBudgetParent(cat)) return 'parent'
+  const parent = cat.parentId ? categories.find((c) => c.id === cat.parentId) : null
+  if (parent && isBudgetParent(parent)) {
+    if (parent.name === 'Savings Goals') return 'category'
+    return 'group'
+  }
+  return 'category'
 }
 
 /** Top-level categories (groups or standalone leaves). */

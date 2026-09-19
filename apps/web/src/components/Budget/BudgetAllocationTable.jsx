@@ -18,8 +18,8 @@ import { useBudgetStore } from '../../store/budgetStore'
 import { useTransactionStore } from '../../store/transactionStore'
 import {
   buildCategoryTree,
-  getCategoryDepth,
-  getRootCategories,
+  getCategoryRole,
+  isBudgetParent,
 } from '../../lib/categories'
 import CategoryForm from '../Categories/CategoryForm'
 import Icon from '../ui/Icon'
@@ -91,12 +91,14 @@ function flattenVisible(categories, expandedGroups) {
 
   const walk = (nodes, depth) => {
     for (const node of nodes) {
+      const role = getCategoryRole(categories, node)
       const hasChildren = node.children.length > 0
       rows.push({
         id: node.id,
         category: node,
         depth,
-        isGroup: hasChildren,
+        role,
+        isGroup: hasChildren || role === 'group' || role === 'parent',
       })
       if (hasChildren && expandedGroups[node.id] !== false) {
         walk(node.children, depth + 1)
@@ -108,16 +110,9 @@ function flattenVisible(categories, expandedGroups) {
   return rows
 }
 
-/** Ids that act as group headers (have children in this category set). */
-function groupIdSet(categories) {
-  return new Set(
-    categories.filter((c) => categories.some((x) => x.parentId === c.id)).map((c) => c.id)
-  )
-}
-
 /**
  * Rebuild sort order from a flat visible order while preserving parent links
- * (supports bucket → parent → subcategory nesting).
+ * (parent → group → category nesting).
  */
 function layoutFromFlatIds(flatIds, categories) {
   const byId = Object.fromEntries(categories.map((c) => [c.id, { ...c }]))
@@ -126,7 +121,7 @@ function layoutFromFlatIds(flatIds, categories) {
 
   for (const id of flatIds) {
     const cat = byId[id]
-    if (!cat || cat.type !== 'expense') continue
+    if (!cat || cat.type !== 'expense' || isBudgetParent(cat)) continue
     const p = cat.parentId || null
     if (!byParent.has(p)) byParent.set(p, [])
     byParent.get(p).push(id)
@@ -145,6 +140,7 @@ function layoutFromFlatIds(flatIds, categories) {
 function CategoryRowContent({
   category,
   depth,
+  role,
   isGroup,
   expanded,
   onToggleExpand,
@@ -162,16 +158,36 @@ function CategoryRowContent({
   isOverlay = false,
 }) {
   const available = budgeted - activity
+  const isParent = role === 'parent'
+  const isLeaf = role === 'category'
   const pad = depth === 0 ? '' : depth === 1 ? 'pl-5' : 'pl-10'
+
+  const rowBg = isParent
+    ? 'bg-surface-container-high/80 border-t border-border-hairline'
+    : isGroup
+      ? 'bg-surface-container/40'
+      : ''
+
+  const nameClass = isParent
+    ? 'font-headline-sm font-bold uppercase tracking-wider text-on-surface'
+    : isGroup
+      ? 'font-bold uppercase tracking-wide text-on-surface'
+      : 'font-medium text-on-surface'
+
+  const canEditName = manageMode && !isOverlay && !isParent
+  const canDrag = manageMode && !isParent
+  const canAddChild = manageMode && isGroup && !isOverlay && !isParent
 
   return (
     <div
-      className={`grid grid-cols-12 items-center py-1 ${
-        isGroup ? 'bg-surface-container/40' : ''
-      } ${isOverlay ? 'rounded-lg border border-border-hairline bg-surface-container-high shadow-xl ring-1 ring-cool-blue/40' : ''}`}
+      className={`grid grid-cols-12 items-center py-1 ${rowBg} ${
+        isOverlay
+          ? 'rounded-lg border border-border-hairline bg-surface-container-high shadow-xl ring-1 ring-cool-blue/40'
+          : ''
+      }`}
     >
       <div className={`col-span-5 flex min-w-0 items-center gap-0.5 ${pad}`}>
-        {manageMode ? (
+        {canDrag ? (
           <button
             type="button"
             className="flex h-6 w-6 cursor-grab items-center justify-center rounded text-on-surface-variant active:cursor-grabbing hover:bg-surface-container hover:text-on-surface"
@@ -205,38 +221,26 @@ function CategoryRowContent({
           {category.emoji || '📁'}
         </span>
 
-        {manageMode && !isOverlay ? (
+        {canEditName ? (
           <button
             type="button"
             onClick={() => onEditCategory(category)}
-            className={`min-w-0 truncate rounded px-1 text-left text-body-sm hover:bg-surface-container ${
-              isGroup
-                ? 'font-bold uppercase tracking-wide text-on-surface'
-                : 'font-medium text-on-surface'
-            }`}
+            className={`min-w-0 truncate rounded px-1 text-left text-body-sm hover:bg-surface-container ${nameClass}`}
             title="Edit category"
           >
             {category.name}
           </button>
         ) : (
-          <span
-            className={`min-w-0 truncate text-body-sm ${
-              isGroup
-                ? 'font-bold uppercase tracking-wide text-on-surface'
-                : 'font-medium text-on-surface'
-            }`}
-          >
-            {category.name}
-          </span>
+          <span className={`min-w-0 truncate text-body-sm ${nameClass}`}>{category.name}</span>
         )}
 
-        {manageMode && isGroup && !isOverlay && (
+        {canAddChild && (
           <button
             type="button"
             onClick={() => onAddChild(category.id)}
             className="ml-auto flex h-6 w-6 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
-            title="Add subcategory"
-            aria-label={`Add subcategory under ${category.name}`}
+            title="Add category"
+            aria-label={`Add category under ${category.name}`}
           >
             <Icon name="add" className="text-[14px]" />
           </button>
@@ -252,7 +256,7 @@ function CategoryRowContent({
           <MoneyCell
             categoryId={category.id}
             budgeted={budgeted}
-            editable={!isGroup}
+            editable={isLeaf && !manageMode}
             editingCell={editingCell}
             editValue={editValue}
             setEditingCell={setEditingCell}
@@ -284,7 +288,8 @@ function CategoryRowContent({
 }
 
 function SortableCategoryRow(props) {
-  const { category, manageMode } = props
+  const { category, manageMode, role } = props
+  const isParent = role === 'parent'
   const {
     attributes,
     listeners,
@@ -292,7 +297,7 @@ function SortableCategoryRow(props) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: category.id, disabled: !manageMode })
+  } = useSortable({ id: category.id, disabled: !manageMode || isParent })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -305,7 +310,7 @@ function SortableCategoryRow(props) {
     <div ref={setNodeRef} style={style} className="relative border-b border-border-hairline/60">
       <CategoryRowContent
         {...props}
-        dragHandleProps={manageMode ? { ...attributes, ...listeners } : {}}
+        dragHandleProps={manageMode && !isParent ? { ...attributes, ...listeners } : {}}
       />
     </div>
   )
@@ -339,7 +344,6 @@ export default function BudgetAllocationTable() {
 
   useEffect(() => {
     if (manageMode && draftCategories) {
-      // Keep draft in sync when store gains new categories from create
       const draftIds = new Set(draftCategories.map((c) => c.id))
       const extras = storeCategories.filter((c) => !draftIds.has(c.id))
       if (extras.length > 0) {
@@ -348,14 +352,25 @@ export default function BudgetAllocationTable() {
     }
   }, [storeCategories, manageMode, draftCategories])
 
-  const parents = useMemo(
+  const budgetParents = useMemo(
     () =>
-      categories.filter((c) => {
-        if (c.type !== 'expense') return false
-        // Buckets + parent groups only (leave room for one more nesting level)
-        return getCategoryDepth(categories, c.id) < 2
-      }),
+      categories.filter(
+        (c) => c.type === 'expense' && isBudgetParent(c)
+      ),
     [categories]
+  )
+
+  const groups = useMemo(
+    () =>
+      categories.filter(
+        (c) => c.type === 'expense' && getCategoryRole(categories, c) === 'group'
+      ),
+    [categories]
+  )
+
+  const categoryParents = useMemo(
+    () => [...groups, ...budgetParents.filter((p) => p.name === 'Savings Goals')],
+    [groups, budgetParents]
   )
 
   const flatRows = useMemo(
@@ -407,7 +422,7 @@ export default function BudgetAllocationTable() {
     }
     setSaving(true)
     const layout = draftCategories
-      .filter((c) => c.type === 'expense')
+      .filter((c) => c.type === 'expense' && !isBudgetParent(c))
       .map((c) => ({
         id: c.id,
         parentId: c.parentId ?? null,
@@ -427,12 +442,18 @@ export default function BudgetAllocationTable() {
   }
 
   const handleDragStart = (event) => {
+    const row = flatRows.find((r) => r.id === event.active.id)
+    if (row?.role === 'parent') return
     setActiveId(event.active.id)
   }
 
   const handleDragOver = (event) => {
     const { active, over } = event
     if (!over || active.id === over.id || !draftCategories) return
+
+    const activeRowLocal = flatRows.find((r) => r.id === active.id)
+    const overRow = flatRows.find((r) => r.id === over.id)
+    if (activeRowLocal?.role === 'parent' || overRow?.role === 'parent') return
 
     setDraftCategories((prev) => {
       const rows = flattenVisible(prev, expandedGroups)
@@ -450,14 +471,16 @@ export default function BudgetAllocationTable() {
   }
 
   const handleCreate = async (values) => {
+    const role = panel?.addRole || 'category'
     const result = await createCategory({
       ...values,
       type: 'expense',
       parentId: values.parentId ?? panel?.parentId ?? null,
+      role,
     })
     if (result.success) {
       setPanel(null)
-      setFlash('Category added')
+      setFlash(role === 'group' ? 'Group added' : 'Category added')
       if (result.category) {
         setDraftCategories((prev) =>
           prev ? [...prev, result.category] : [result.category]
@@ -476,6 +499,9 @@ export default function BudgetAllocationTable() {
   }
 
   const handleUpdate = async (values) => {
+    if (panel?.category && isBudgetParent(panel.category)) {
+      return { success: false, error: 'System budget parents cannot be edited.' }
+    }
     const result = await updateCategory(panel.category.id, values)
     if (result.success) {
       setPanel(null)
@@ -493,9 +519,13 @@ export default function BudgetAllocationTable() {
 
   const handleDeleteFromEdit = async () => {
     if (!panel?.category) return
+    if (isBudgetParent(panel.category)) {
+      setFlash('System budget parents cannot be deleted.')
+      return
+    }
     if (
       !window.confirm(
-        `Remove “${panel.category.name}”? Transactions keep their history; this category will be unassigned.`
+        `Remove "${panel.category.name}"? Transactions keep their history; this category will be unassigned.`
       )
     ) {
       return
@@ -518,6 +548,7 @@ export default function BudgetAllocationTable() {
   const rowProps = (row) => ({
     category: row.category,
     depth: row.depth,
+    role: row.role,
     isGroup: row.isGroup,
     expanded: expandedGroups[row.id] !== false,
     onToggleExpand: toggleGroup,
@@ -529,14 +560,26 @@ export default function BudgetAllocationTable() {
     setEditValue,
     onSaveBudget: handleSaveBudget,
     manageMode,
-    onEditCategory: (cat) => setPanel({ mode: 'edit', category: cat }),
+    onEditCategory: (cat) => {
+      if (isBudgetParent(cat)) {
+        setFlash('System budget parents cannot be edited.')
+        return
+      }
+      setPanel({ mode: 'edit', category: cat })
+    },
     onAddChild: (parentId) =>
       setPanel({
         mode: 'add',
+        addRole: 'category',
         parentId,
         category: { emoji: '📁', type: 'expense', parentId },
       }),
   })
+
+  const panelParents =
+    panel?.addRole === 'group'
+      ? budgetParents.filter((p) => p.name !== 'Savings Goals')
+      : categoryParents
 
   return (
     <div className="flex flex-col rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
@@ -545,16 +588,32 @@ export default function BudgetAllocationTable() {
       {manageMode && (
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cool-blue/30 bg-cool-blue/10 px-2 py-1.5">
           <p className="text-label-md text-on-surface">
-            Editing categories — drag ☰ to reorder live. Drop under a group to nest.
-            Click a name to edit.
+            Editing categories — drag groups and categories to reorder. Parents (Needs, Wants,
+            Savings Goals, Other) stay fixed.
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() =>
                 setPanel({
                   mode: 'add',
-                  parentId: null,
+                  addRole: 'group',
+                  parentId: budgetParents.find((p) => p.name === 'Needs')?.id ?? null,
+                  category: { emoji: '📂', type: 'expense' },
+                })
+              }
+              className="inline-flex items-center gap-1 rounded-lg border border-border-hairline bg-surface-base px-space-sm py-1 text-label-md font-semibold text-on-surface hover:bg-surface-container"
+            >
+              <Icon name="create_new_folder" className="text-[14px]" />
+              Add group
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setPanel({
+                  mode: 'add',
+                  addRole: 'category',
+                  parentId: groups[0]?.id ?? null,
                   category: { emoji: '📁', type: 'expense' },
                 })
               }
@@ -579,9 +638,13 @@ export default function BudgetAllocationTable() {
         <div className="mb-2 space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-body-md font-bold text-on-surface">
-              {panel.mode === 'add' ? 'Add category' : `Edit ${panel.category?.name}`}
+              {panel.mode === 'add'
+                ? panel.addRole === 'group'
+                  ? 'Add group'
+                  : 'Add category'
+                : `Edit ${panel.category?.name}`}
             </h3>
-            {panel.mode === 'edit' && (
+            {panel.mode === 'edit' && !isBudgetParent(panel.category) && (
               <button
                 type="button"
                 onClick={handleDeleteFromEdit}
@@ -593,21 +656,31 @@ export default function BudgetAllocationTable() {
             )}
           </div>
           <CategoryForm
-            key={panel.category?.id || `add-${panel.parentId || 'root'}`}
+            key={panel.category?.id || `add-${panel.addRole}-${panel.parentId || 'root'}`}
             initial={
               panel.mode === 'edit'
                 ? panel.category
                 : {
-                    emoji: '📁',
+                    emoji: panel.addRole === 'group' ? '📂' : '📁',
                     type: 'expense',
                     parentId: panel.parentId,
                   }
             }
-            parents={parents}
+            parents={panelParents}
+            addRole={panel.mode === 'add' ? panel.addRole : undefined}
             showType={false}
+            allowParentChange={
+              panel.mode === 'add' || !isBudgetParent(panel.category)
+            }
             onSubmit={panel.mode === 'add' ? handleCreate : handleUpdate}
             onCancel={() => setPanel(null)}
-            submitLabel={panel.mode === 'add' ? 'Add category' : 'Save changes'}
+            submitLabel={
+              panel.mode === 'add'
+                ? panel.addRole === 'group'
+                  ? 'Add group'
+                  : 'Add category'
+                : 'Save changes'
+            }
           />
         </div>
       )}

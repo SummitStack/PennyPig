@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import EmojiPicker from '../Settings/EmojiPicker'
+import { isBudgetParent } from '../../lib/categories'
 
 export default function CategoryForm({
   initial,
@@ -9,6 +10,7 @@ export default function CategoryForm({
   submitLabel,
   showType = true,
   allowParentChange = true,
+  addRole,
 }) {
   const [name, setName] = useState(initial?.name || '')
   const [emoji, setEmoji] = useState(initial?.emoji || '📁')
@@ -18,10 +20,26 @@ export default function CategoryForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
+  const isSystemEdit = Boolean(initial?.id && isBudgetParent(initial))
+  const parentLabel =
+    addRole === 'group'
+      ? 'Budget parent'
+      : addRole === 'category'
+        ? 'Group'
+        : 'Parent group'
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!name.trim()) {
       setError('Name is required')
+      return
+    }
+    if (addRole === 'group' && !parentId) {
+      setError('Choose a budget parent for this group')
+      return
+    }
+    if (addRole === 'category' && !parentId) {
+      setError('Choose a group for this category')
       return
     }
     setSaving(true)
@@ -60,8 +78,9 @@ export default function CategoryForm({
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Category name"
-            className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-cool-blue"
+            placeholder={addRole === 'group' ? 'Group name' : 'Category name'}
+            disabled={isSystemEdit}
+            className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-cool-blue disabled:opacity-60"
           />
         </div>
         {showType && (
@@ -78,17 +97,23 @@ export default function CategoryForm({
             </select>
           </div>
         )}
-        {allowParentChange && (
+        {allowParentChange && !isSystemEdit && (
           <div className="min-w-[10rem] flex-1">
             <label className="mb-1 block text-label-sm text-on-surface-variant">
-              Parent group
+              {parentLabel}
             </label>
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
+              required={addRole === 'group' || addRole === 'category'}
               className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface"
             >
-              <option value="">None (top-level)</option>
+              {!addRole && <option value="">None (top-level)</option>}
+              {(addRole === 'group' || addRole === 'category') && (
+                <option value="" disabled>
+                  Select…
+                </option>
+              )}
               {parents
                 .filter((p) => p.id !== initial?.id && p.type === type)
                 .map((p) => (
@@ -117,7 +142,7 @@ export default function CategoryForm({
       <div className="flex flex-wrap gap-space-sm">
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || isSystemEdit}
           className="rounded-lg bg-primary px-space-md py-space-sm text-body-sm font-semibold text-on-primary disabled:opacity-50"
         >
           {saving ? 'Saving…' : submitLabel}

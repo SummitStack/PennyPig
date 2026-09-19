@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
   custom boolean DEFAULT false,
   parent_id uuid REFERENCES public.categories(id) ON DELETE CASCADE,
   sort_order integer NOT NULL DEFAULT 0,
+  is_system boolean NOT NULL DEFAULT false,
   created_at timestamptz DEFAULT now(),
   UNIQUE(user_id, name)
 );
