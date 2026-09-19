@@ -1,34 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTransactionStore } from '../../store/transactionStore'
-import {
-  CATEGORY_EMOJIS,
-  buildCategoryTree,
-  getRootCategories,
-} from '../../lib/categories'
+import { buildCategoryTree, getRootCategories } from '../../lib/categories'
 import Icon from '../ui/Icon'
-
-function EmojiPicker({ value, onChange }) {
-  return (
-    <div className="rounded-lg border border-border-hairline bg-surface p-space-sm">
-      <div className="mb-space-xs text-label-sm text-on-surface-variant">Pick an emoji</div>
-      <div className="grid max-h-36 grid-cols-8 gap-1 overflow-y-auto">
-        {CATEGORY_EMOJIS.map((emoji) => (
-          <button
-            key={emoji}
-            type="button"
-            onClick={() => onChange(emoji)}
-            className={`flex h-8 w-8 items-center justify-center rounded-md text-lg transition-colors hover:bg-surface-container-high ${
-              value === emoji ? 'bg-primary/20 ring-1 ring-primary' : ''
-            }`}
-            aria-label={`Choose ${emoji}`}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
+import EmojiPicker from './EmojiPicker'
 
 function CategoryForm({
   initial,
@@ -123,7 +97,16 @@ function CategoryForm({
         </div>
       </div>
 
-      {showPicker && <EmojiPicker value={emoji} onChange={setEmoji} />}
+      {showPicker && (
+        <EmojiPicker
+          value={emoji}
+          onChange={(next) => {
+            setEmoji(next)
+            setShowPicker(false)
+          }}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
 
       {error && <p className="text-body-sm text-status-error">{error}</p>}
 
