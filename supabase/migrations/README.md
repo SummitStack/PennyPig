@@ -21,6 +21,10 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - Fixes `column reference "item_id" is ambiguous` in `upsert_plaid_item`
   (RETURNS TABLE out-params vs table columns); use locals + `RETURN QUERY`
 
+## 20260920_fix_upsert_plaid_item_jsonb.sql
+- Definitive fix: `upsert_plaid_item` returns `jsonb` (no OUT-param name clash);
+  `ON CONFLICT ON CONSTRAINT plaid_items_item_id_key`
+
 ## 20260919_category_hierarchy_emoji.sql
 - `categories.parent_id` + `categories.sort_order`
 - Hierarchical default categories with emoji icons
