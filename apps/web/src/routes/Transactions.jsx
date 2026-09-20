@@ -427,20 +427,6 @@ export default function TransactionsPage() {
               <Icon name="draft" className="text-[16px]" />
               File Import
             </button>
-            <button
-              type="button"
-              className={toolbarBtn}
-              disabled={selectedIds.length === 0}
-              onClick={() => clearSelection()}
-              title={
-                selectedIds.length
-                  ? `${selectedIds.length} selected — clear selection`
-                  : 'Select rows to edit'
-              }
-            >
-              <Icon name="edit" className="text-[16px]" />
-              Edit
-            </button>
             <button type="button" className={toolbarBtn} disabled title="Coming soon">
               <Icon name="more_horiz" className="text-[16px]" />
               More
