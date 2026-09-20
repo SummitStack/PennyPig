@@ -17,6 +17,10 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
   PostgREST needing table-level SELECT (which would expose `access_token`)
 - Exchange API uses the RPC instead of direct `.upsert()` on `plaid_items`
 
+## 20260920_fix_upsert_plaid_item_ambiguous.sql
+- Fixes `column reference "item_id" is ambiguous` in `upsert_plaid_item`
+  (RETURNS TABLE out-params vs table columns); use locals + `RETURN QUERY`
+
 ## 20260919_category_hierarchy_emoji.sql
 - `categories.parent_id` + `categories.sort_order`
 - Hierarchical default categories with emoji icons
