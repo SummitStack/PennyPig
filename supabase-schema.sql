@@ -172,8 +172,8 @@ ALTER TABLE public.payee_category_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.category_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.account_reconciliations ENABLE ROW LEVEL SECURITY;
 
--- Column privileges: authenticated may SELECT plaid_items metadata but NOT access_token.
--- Tokens are read only via SECURITY DEFINER RPC get_plaid_access_token(uuid).
+-- Privileges: authenticated has INSERT/UPDATE/DELETE on plaid_items; SELECT only on
+-- metadata columns (NOT access_token). Tokens are read via get_plaid_access_token(uuid).
 
 -- RPCs (see migrations):
 --   public.handle_new_user()          -- auth.users trigger
