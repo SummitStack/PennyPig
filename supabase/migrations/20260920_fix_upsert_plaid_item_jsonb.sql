@@ -1,7 +1,6 @@
--- plaid_items_upsert_rpc
--- PostgREST cannot reliably INSERT/UPSERT plaid_items when SELECT is
--- column-restricted (hides access_token). Save Items via SECURITY DEFINER RPC.
--- Returns jsonb to avoid RETURNS TABLE out-param clashes with column names.
+-- fix_upsert_plaid_item_jsonb
+-- RETURNS TABLE(id, item_id, ...) makes PL/pgSQL out-params that shadow
+-- plaid_items columns (ON CONFLICT (item_id) → "ambiguous"). Return jsonb instead.
 
 DROP FUNCTION IF EXISTS public.upsert_plaid_item(text, text, text, text);
 
@@ -73,9 +72,3 @@ $$;
 
 REVOKE ALL ON FUNCTION public.upsert_plaid_item(text, text, text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.upsert_plaid_item(text, text, text, text) TO authenticated;
-
-GRANT INSERT, UPDATE, DELETE ON TABLE public.plaid_items TO authenticated;
-GRANT SELECT (
-  id, user_id, item_id, institution_id, institution_name, created_at, updated_at
-) ON TABLE public.plaid_items TO authenticated;
-REVOKE SELECT (access_token) ON TABLE public.plaid_items FROM authenticated;
