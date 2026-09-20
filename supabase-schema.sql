@@ -174,6 +174,7 @@ ALTER TABLE public.account_reconciliations ENABLE ROW LEVEL SECURITY;
 
 -- Privileges: authenticated has INSERT/UPDATE/DELETE on plaid_items; SELECT only on
 -- metadata columns (NOT access_token). Tokens are read via get_plaid_access_token(uuid).
+-- Writes of new Items go through upsert_plaid_item(...) SECURITY DEFINER RPC.
 
 -- RPCs (see migrations):
 --   public.handle_new_user()          -- auth.users trigger

@@ -31,22 +31,17 @@ export async function POST(request: NextRequest) {
     const accessToken = data.access_token as string
     const itemId = data.item_id as string
 
-    const { data: itemRow, error: itemError } = await supabase
-      .from('plaid_items')
-      .upsert(
-        {
-          user_id: user.id,
-          item_id: itemId,
-          access_token: accessToken,
-          institution_name: 'Plaid Connected',
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'item_id' }
-      )
-      .select('id, item_id, institution_name')
-      .single()
+    const { data: itemRows, error: itemError } = await supabase.rpc('upsert_plaid_item', {
+      p_item_id: itemId,
+      p_access_token: accessToken,
+      p_institution_id: null,
+      p_institution_name: 'Plaid Connected',
+    })
 
     if (itemError) throw new Error(itemError.message)
+
+    const itemRow = Array.isArray(itemRows) ? itemRows[0] : itemRows
+    if (!itemRow?.id) throw new Error('Failed to save Plaid item')
 
     const accountsResult = await plaidRequest('/accounts/get', {
       access_token: accessToken,
