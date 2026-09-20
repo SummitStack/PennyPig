@@ -12,6 +12,11 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - Keeps `access_token` unselectable; metadata columns remain SELECT-able
 - Fixes Link exchange error: `permission denied for table plaid_items`
 
+## 20260920_plaid_items_upsert_rpc.sql
+- `upsert_plaid_item(...)` SECURITY DEFINER RPC — Link exchange saves Items without
+  PostgREST needing table-level SELECT (which would expose `access_token`)
+- Exchange API uses the RPC instead of direct `.upsert()` on `plaid_items`
+
 ## 20260919_category_hierarchy_emoji.sql
 - `categories.parent_id` + `categories.sort_order`
 - Hierarchical default categories with emoji icons
