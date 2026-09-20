@@ -1,8 +1,6 @@
--- plaid_items_upsert_rpc
--- PostgREST cannot reliably INSERT/UPSERT plaid_items when SELECT is
--- column-restricted (hides access_token). Save Items via SECURITY DEFINER RPC.
--- OUT column names (id/item_id/institution_name) must not be assigned directly
--- or RETURNING targets them ambiguously — use locals + RETURN QUERY.
+-- fix_upsert_plaid_item_ambiguous
+-- RETURNS TABLE out-params named id/item_id/institution_name shadowed
+-- RETURNING targets ("column reference item_id is ambiguous").
 
 CREATE OR REPLACE FUNCTION public.upsert_plaid_item(
   p_item_id text,
@@ -67,9 +65,3 @@ $$;
 
 REVOKE ALL ON FUNCTION public.upsert_plaid_item(text, text, text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.upsert_plaid_item(text, text, text, text) TO authenticated;
-
-GRANT INSERT, UPDATE, DELETE ON TABLE public.plaid_items TO authenticated;
-GRANT SELECT (
-  id, user_id, item_id, institution_id, institution_name, created_at, updated_at
-) ON TABLE public.plaid_items TO authenticated;
-REVOKE SELECT (access_token) ON TABLE public.plaid_items FROM authenticated;
