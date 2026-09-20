@@ -87,6 +87,7 @@ export function spendingByCategory({
     } else {
       for (const txn of transactions) {
         if (txn.excludeFromBudget) continue
+        if (txn.cleared === false) continue
         if (txn.transferAccountId && !txn.categoryId && !txn.isSplit) continue
         if (!inDateRange(txn, from, to)) continue
 
@@ -135,6 +136,7 @@ export function incomeVsExpense({
 
   for (const txn of transactions) {
     if (txn.excludeFromBudget) continue
+    if (txn.cleared === false) continue
     if (txn.transferAccountId && !txn.categoryId && !txn.isSplit) continue
     if (!inDateRange(txn, dateFrom, dateTo)) continue
 
