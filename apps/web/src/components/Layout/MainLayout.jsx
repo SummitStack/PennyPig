@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useAccountStore } from '../../store/accountStore'
 import Icon from '../ui/Icon'
@@ -27,6 +27,32 @@ function formatSyncLabel(accounts) {
   })
 }
 
+/** SPA nav that won't fight Next.js full document loads on <a href>. */
+function AppNavLink({ to, end = false, className = '', children, ...rest }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const active = end
+    ? location.pathname === to
+    : location.pathname === to || location.pathname.startsWith(`${to}/`)
+
+  return (
+    <a
+      href={to}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+        e.preventDefault()
+        e.stopPropagation()
+        if (location.pathname !== to) navigate(to)
+      }}
+      className={`relative z-10 cursor-pointer ${active ? 'font-semibold text-on-surface' : ''} ${className}`}
+      aria-current={active ? 'page' : undefined}
+      {...rest}
+    >
+      {children}
+    </a>
+  )
+}
+
 export default function MainLayout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -41,34 +67,33 @@ export default function MainLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-surface font-body-md text-on-surface">
-      <header className="fixed top-0 z-50 w-full border-b border-border-hairline bg-surface/80 shadow-[0_1px_8px_rgba(0,0,0,0.2)] backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-gutter">
+      <header className="fixed top-0 z-50 w-full border-b border-border-hairline bg-surface shadow-[0_1px_8px_rgba(0,0,0,0.2)]">
+        <div className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between px-gutter">
           <div className="flex items-center gap-space-md">
-            <Link to="/" className="flex items-center gap-space-sm">
+            <AppNavLink to="/" end className="flex items-center gap-space-sm">
               <Icon name="savings" className="text-[24px] text-secondary" />
-              <span className="font-headline-sm text-on-surface font-bold tracking-tight">
+              <span className="font-headline-sm font-bold tracking-tight text-on-surface">
                 PennyPig
               </span>
-            </Link>
+            </AppNavLink>
             <nav className="ml-space-lg hidden items-center gap-space-xs md:flex">
-              {NAV.map((item) => {
-                const active = item.end
-                  ? location.pathname === item.to
-                  : location.pathname.startsWith(item.to)
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className={`rounded-lg px-space-md py-space-sm text-sm transition-colors ${
-                      active
-                        ? 'bg-surface-container-high font-semibold text-on-surface'
-                        : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                )
-              })}
+              {NAV.map((item) => (
+                <AppNavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={`rounded-lg px-space-md py-space-sm text-sm transition-colors ${
+                    (item.end
+                      ? location.pathname === item.to
+                      : location.pathname === item.to ||
+                        location.pathname.startsWith(`${item.to}/`))
+                      ? 'bg-surface-container-high'
+                      : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                  }`}
+                >
+                  {item.label}
+                </AppNavLink>
+              ))}
             </nav>
           </div>
           <div className="flex items-center gap-space-lg">
@@ -78,18 +103,18 @@ export default function MainLayout({ children }) {
                 <span>{syncLabel}</span>
               </div>
             )}
-            <Link
+            <AppNavLink
               to="/settings"
               className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant transition-colors hover:text-on-surface"
               title="Settings"
               aria-label="Settings"
             >
               <Icon name="settings" className="text-[18px]" />
-            </Link>
+            </AppNavLink>
             <button
               type="button"
               onClick={handleSignOut}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-on-primary"
+              className="relative z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary"
               title="Sign out"
               aria-label="Sign out"
             >
@@ -97,25 +122,24 @@ export default function MainLayout({ children }) {
             </button>
           </div>
         </div>
-        <nav className="flex gap-space-xs overflow-x-auto border-t border-border-hairline px-gutter py-2 md:hidden">
-          {NAV.map((item) => {
-            const active = item.end
-              ? location.pathname === item.to
-              : location.pathname.startsWith(item.to)
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`whitespace-nowrap rounded-lg px-space-md py-space-sm text-sm ${
-                  active
-                    ? 'bg-surface-container-high font-semibold text-on-surface'
-                    : 'text-on-surface-variant'
-                }`}
-              >
-                {item.label}
-              </Link>
-            )
-          })}
+        <nav className="relative z-10 flex gap-space-xs overflow-x-auto border-t border-border-hairline px-gutter py-2 md:hidden">
+          {NAV.map((item) => (
+            <AppNavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={`whitespace-nowrap rounded-lg px-space-md py-space-sm text-sm ${
+                (item.end
+                  ? location.pathname === item.to
+                  : location.pathname === item.to ||
+                    location.pathname.startsWith(`${item.to}/`))
+                  ? 'bg-surface-container-high'
+                  : 'text-on-surface-variant'
+              }`}
+            >
+              {item.label}
+            </AppNavLink>
+          ))}
         </nav>
       </header>
 
