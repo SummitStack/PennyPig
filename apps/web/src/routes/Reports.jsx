@@ -292,7 +292,7 @@ export default function Reports() {
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`whitespace-nowrap rounded-t-lg px-space-md py-2 text-sm transition-colors ${
+            className={`cursor-pointer whitespace-nowrap rounded-t-lg px-space-md py-2 text-sm transition-colors ${
               tab === t.id
                 ? 'bg-surface-container-high font-semibold text-on-surface'
                 : 'text-on-surface-variant hover:text-on-surface'
