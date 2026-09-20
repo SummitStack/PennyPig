@@ -43,6 +43,8 @@ export function leafActivity({
   let total = 0
   for (const txn of transactions) {
     if (txn.excludeFromBudget) continue
+    // Cleared = confirmed for budget (category reviewed)
+    if (txn.cleared === false) continue
     // Pure transfers between accounts don't hit expense activity
     if (txn.transferAccountId && !txn.categoryId && !txn.isSplit) continue
 
@@ -133,6 +135,7 @@ export function incomeForMonth(transactions, categories, month) {
   let income = 0
   for (const txn of transactions) {
     if (txn.excludeFromBudget) continue
+    if (txn.cleared === false) continue
     if (txn.transferAccountId && !txn.categoryId) continue
     const key = monthKeyFromDate(txn.date)
     if (key !== month) continue

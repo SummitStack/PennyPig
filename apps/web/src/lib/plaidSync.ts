@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { plaidRequest } from './plaid'
+import { isParentCategory } from './categories'
+import { resolveToLeafCategoryId, suggestLeafCategoryId } from './categorySuggest'
 
 type AccountRow = {
   id: string
@@ -11,6 +13,22 @@ function normalizePayeeKey(value: string) {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function mapCategoryRow(row: {
+  id: string
+  name: string
+  parent_id?: string | null
+  type?: string
+  sort_order?: number
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    parentId: row.parent_id || null,
+    type: row.type || 'expense',
+    sortOrder: row.sort_order ?? 0,
+  }
 }
 
 export async function getPlaidAccessToken(
@@ -73,7 +91,10 @@ export async function syncTransactionsForAccounts(
 
   const [{ data: categories }, { data: renameRules }, { data: categoryRules }] =
     await Promise.all([
-      supabase.from('categories').select('id, name').eq('user_id', userId),
+      supabase
+        .from('categories')
+        .select('id, name, parent_id, type, sort_order')
+        .eq('user_id', userId),
       supabase
         .from('payee_rename_rules')
         .select('match_key, rename_to')
@@ -84,12 +105,7 @@ export async function syncTransactionsForAccounts(
         .eq('user_id', userId),
     ])
 
-  const categoryByName = new Map(
-    (categories || []).map((c: { id: string; name: string }) => [
-      c.name.toLowerCase(),
-      c.id,
-    ])
-  )
+  const mappedCategories = (categories || []).map(mapCategoryRow)
 
   const renameByKey = new Map(
     (renameRules || []).map((r: { match_key: string; rename_to: string }) => [
@@ -112,24 +128,22 @@ export async function syncTransactionsForAccounts(
       const accountId = accountMap.get(txn.account_id)
       if (!accountId) return null
 
-      const rawCategory = txn.personal_finance_category?.primary || 'Shopping'
-      const pretty = rawCategory
-        .split('_')
-        .map((part: string) => part.charAt(0) + part.slice(1).toLowerCase())
-        .join(' ')
-      const plaidSuggested =
-        categoryByName.get(pretty.toLowerCase()) ||
-        categoryByName.get('shopping') ||
-        null
-
+      const pfc = txn.personal_finance_category || {}
       const merchant = txn.merchant_name || txn.name || 'Unknown'
       const matchKey = normalizePayeeKey(merchant)
       const payee = renameByKey.get(matchKey) || merchant
       const pending = Boolean(txn.pending)
       // Plaid: positive = money leaving account (outflow). Keep signed.
       const signed = Number(txn.amount) || 0
-      const suggestedCategoryId =
-        categoryRuleByKey.get(matchKey) || plaidSuggested
+      const ruleId = categoryRuleByKey.get(matchKey)
+      const suggestedCategoryId = suggestLeafCategoryId({
+        categories: mappedCategories,
+        payee,
+        merchant,
+        plaidPrimary: pfc.primary || '',
+        plaidDetailed: pfc.detailed || '',
+        ...(ruleId ? { ruleCategoryId: ruleId } : {}),
+      })
 
       return {
         user_id: userId,
@@ -142,7 +156,8 @@ export async function syncTransactionsForAccounts(
         category_id: suggestedCategoryId,
         description: txn.name || null,
         status: pending ? 'pending' : 'posted',
-        cleared: !pending,
+        // Uncleared until user reviews category and clears → budget
+        cleared: false,
         last_sync_check: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -170,16 +185,25 @@ export async function syncTransactionsForAccounts(
     const merchant = String(row.merchant)
     const matchKey = normalizePayeeKey(merchant)
     const renamed = renameByKey.get(matchKey)
+    const preservedCategory = existing.category_id
+      ? isParentCategory(mappedCategories, existing.category_id)
+        ? suggestLeafCategoryId({
+            categories: mappedCategories,
+            payee: String(existing.payee || merchant),
+            merchant,
+          }) || resolveToLeafCategoryId(mappedCategories, existing.category_id)
+        : existing.category_id
+      : row.category_id
     return {
       ...row,
-      category_id: existing.category_id ?? row.category_id,
+      category_id: preservedCategory,
       memo: existing.memo ?? null,
       payee: renamed || existing.payee || merchant,
-      // Keep manual cleared state if already posted/cleared by user
+      // Keep manual cleared state if user already cleared
       cleared:
         existing.cleared !== null && existing.cleared !== undefined
           ? existing.cleared
-          : row.cleared,
+          : false,
     }
   })
 

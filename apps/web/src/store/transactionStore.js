@@ -9,6 +9,7 @@ import {
 } from '../lib/categories'
 import { normalizePayeeKey } from '../lib/payee'
 import { signedAmount, absAmount } from '../lib/money'
+import { resolveToLeafCategoryId } from '../lib/categorySuggest'
 
 function isPureTransfer(txn) {
   return txn.transferAccountId && !txn.categoryId && !txn.isSplit
@@ -828,9 +829,12 @@ export const useTransactionStore = create((set, get) => ({
   },
 
   categorizeTransaction: async (transactionId, categoryId, opts = {}) => {
+    const resolvedId = categoryId
+      ? resolveToLeafCategoryId(get().categories, categoryId) || categoryId
+      : null
     const txn = get().transactions.find((t) => t.id === transactionId)
-    const category = categoryId
-      ? get().categories.find((c) => c.id === categoryId)
+    const category = resolvedId
+      ? get().categories.find((c) => c.id === resolvedId)
       : null
     const categoriesById = Object.fromEntries(
       get().categories.map((c) => [c.id, c])
@@ -840,7 +844,7 @@ export const useTransactionStore = create((set, get) => ({
         t.id === transactionId
           ? {
               ...t,
-              categoryId: categoryId || null,
+              categoryId: resolvedId || null,
               category: category?.name || 'Uncategorized',
               categoryEmoji: category?.emoji || '',
               categoryType: category?.type || 'expense',
@@ -857,20 +861,20 @@ export const useTransactionStore = create((set, get) => ({
     const { error } = await supabase
       .from('transactions')
       .update({
-        category_id: categoryId || null,
+        category_id: resolvedId || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', transactionId)
 
     if (error) return { success: false, error: error.message }
 
-    if (categoryId && txn && !opts.skipRuleUpsert) {
-      await get().applyCategoryRuleOnCategorize(txn, categoryId)
+    if (resolvedId && txn && !opts.skipRuleUpsert) {
+      await get().applyCategoryRuleOnCategorize(txn, resolvedId)
     }
 
-    if (categoryId && txn) {
+    if (resolvedId && txn) {
       const account = get().accounts.find((a) => a.id === txn.accountId)
-      const cat = get().categories.find((c) => c.id === categoryId)
+      const cat = get().categories.find((c) => c.id === resolvedId)
       if (
         account?.type === 'credit' &&
         txn.amount > 0 &&
@@ -879,10 +883,10 @@ export const useTransactionStore = create((set, get) => ({
       ) {
         const { useBudgetStore } = await import('./budgetStore')
         const budget = useBudgetStore.getState()
-        const available = budget.getAvailableFor(categoryId)
+        const available = budget.getAvailableFor(resolvedId)
         const moveAmt = Math.min(absAmount(txn.amount), Math.max(0, available))
         if (moveAmt > 0) {
-          await budget.moveMoney(categoryId, account.creditCardCategoryId, moveAmt)
+          await budget.moveMoney(resolvedId, account.creditCardCategoryId, moveAmt)
         }
       }
     }
@@ -1460,6 +1464,12 @@ export const useTransactionStore = create((set, get) => ({
         }
         return true
       })
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .sort((a, b) => {
+        // Uncleared first (needs review), then newest date
+        const ac = a.cleared === false ? 0 : 1
+        const bc = b.cleared === false ? 0 : 1
+        if (ac !== bc) return ac - bc
+        return new Date(b.date) - new Date(a.date)
+      })
   },
 }))

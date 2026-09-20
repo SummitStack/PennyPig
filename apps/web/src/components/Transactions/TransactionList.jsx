@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTransactionStore } from '../../store/transactionStore'
-import { buildCategoryTree, getLeafCategories } from '../../lib/categories'
+import { getLeafCategories } from '../../lib/categories'
+import { leafExpenseOptgroups, resolveToLeafCategoryId } from '../../lib/categorySuggest'
 import { absAmount, formatMoney, isInflow } from '../../lib/money'
 import Icon from '../ui/Icon'
 
@@ -13,38 +14,36 @@ function formatDate(d) {
 }
 
 function CategorySelect({ value, categories, onChange, disabled = false }) {
-  const expenseTree = buildCategoryTree(categories, 'expense')
+  const expenseGroups = leafExpenseOptgroups(categories)
   const incomeLeaves = getLeafCategories(categories, 'income')
+  const resolvedValue = resolveToLeafCategoryId(categories, value) || value || ''
 
   return (
     <select
-      className="w-full max-w-[14rem] cursor-pointer truncate rounded border border-transparent bg-transparent py-0.5 text-body-sm text-on-surface hover:border-border-hairline focus:border-cool-blue focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-      value={value || ''}
+      className="w-full max-w-[10rem] cursor-pointer truncate rounded border border-transparent bg-transparent py-0.5 text-body-sm text-on-surface hover:border-border-hairline focus:border-cool-blue focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+      value={resolvedValue}
       onChange={(e) => onChange(e.target.value || null)}
       onClick={(e) => e.stopPropagation()}
       disabled={disabled}
+      title="Pick a subcategory (final budget category)"
     >
       <option value="">Uncategorized</option>
-      {expenseTree.map((root) =>
-        root.children.length > 0 ? (
-          <optgroup key={root.id} label={`${root.emoji} ${root.name}`}>
-            {root.children.map((child) => (
-              <option key={child.id} value={child.id}>
-                {child.emoji} {child.name}
-              </option>
-            ))}
-          </optgroup>
-        ) : (
-          <option key={root.id} value={root.id}>
-            {root.emoji} {root.name}
-          </option>
-        )
-      )}
+      {expenseGroups.map((group) => (
+        <optgroup key={group.label} label={group.label}>
+          {group.items.map((leaf) => (
+            <option key={leaf.id} value={leaf.id}>
+              {leaf.emoji ? `${leaf.emoji} ` : ''}
+              {leaf.name}
+            </option>
+          ))}
+        </optgroup>
+      ))}
       {incomeLeaves.length > 0 && (
         <optgroup label="Income">
           {incomeLeaves.map((cat) => (
             <option key={cat.id} value={cat.id}>
-              {cat.emoji} {cat.name}
+              {cat.emoji ? `${cat.emoji} ` : ''}
+              {cat.name}
             </option>
           ))}
         </optgroup>
@@ -374,7 +373,7 @@ function TransactionRow({
       <tr
         className={`border-b border-border-hairline/70 transition-colors hover:bg-surface-container/60 ${
           selected ? 'bg-primary/10' : ''
-        }`}
+        } ${!txn.cleared && !isTransfer ? 'bg-surface-container-low/40' : ''}`}
         onClick={() => onToggleSelected(txn.id)}
       >
         <td className="px-2 py-1">
@@ -388,10 +387,10 @@ function TransactionRow({
           />
         </td>
         <td
-          className="truncate px-1 py-1 text-label-sm text-on-surface-variant"
+          className="max-w-[7rem] truncate px-2 py-1 text-body-sm font-medium text-on-surface"
           title={txn.account}
         >
-          {txn.account?.slice(0, 3) || '…'}
+          {txn.account || '…'}
         </td>
         <td className="whitespace-nowrap px-2 py-1 text-on-surface">
           {formatDate(txn.date)}
@@ -434,13 +433,13 @@ function TransactionRow({
         <td className="px-1 py-1">
           <EditableMemo txn={txn} onSave={onUpdateMemo} />
         </td>
-        <td className="px-2 py-1 text-right tabular-nums text-on-surface">
+        <td className="border-l border-border-hairline/80 bg-surface-container-lowest/30 px-2 py-1 text-right tabular-nums text-on-surface">
           {outflow != null ? formatMoney(outflow) : ''}
         </td>
-        <td className="px-2 py-1 text-right tabular-nums text-sage-accent">
+        <td className="border-l border-border-hairline/50 bg-sage-accent/5 px-2 py-1 text-right tabular-nums text-sage-accent">
           {inflowAmt != null ? `+${formatMoney(inflowAmt)}` : ''}
         </td>
-        <td className="px-1 py-1">
+        <td className="border-l border-border-hairline/80 px-2 py-1">
           <div className="flex items-center justify-center gap-0.5">
             {!isTransfer && (
               <button
@@ -462,16 +461,20 @@ function TransactionRow({
                 e.stopPropagation()
                 onToggleCleared(txn.id)
               }}
-              className="inline-flex items-center justify-center"
-              title={txn.cleared ? 'Cleared — click to uncleared' : 'Uncleared — click to clear'}
+              className="inline-flex cursor-pointer items-center justify-center"
+              title={
+                txn.cleared
+                  ? 'Cleared — on budget. Click to uncleared.'
+                  : 'Uncleared — not on budget yet. Review category, then clear.'
+              }
               aria-label={txn.cleared ? 'Cleared' : 'Uncleared'}
             >
               {txn.cleared ? (
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-status-success text-[10px] font-bold text-on-primary">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-status-success text-[11px] font-bold text-on-primary">
                   c
                 </span>
               ) : (
-                <span className="flex h-4 w-4 items-center justify-center rounded-full border border-outline-variant text-[10px] text-on-surface-variant">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-outline-variant text-[11px] text-on-surface-variant">
                   c
                 </span>
               )}
@@ -571,7 +574,7 @@ export default function TransactionList() {
                 className="accent-primary"
               />
             </th>
-            <th className="w-10 px-1 py-1.5">AC</th>
+            <th className="w-28 px-2 py-1.5">Account</th>
             <th className="w-24 px-2 py-1.5">
               <span className="inline-flex items-center gap-0.5">
                 Date
@@ -579,11 +582,17 @@ export default function TransactionList() {
               </span>
             </th>
             <th className="min-w-[9rem] px-2 py-1.5">Payee</th>
-            <th className="min-w-[11rem] px-2 py-1.5">Category</th>
-            <th className="min-w-[6rem] px-2 py-1.5">Memo</th>
-            <th className="w-24 px-2 py-1.5 text-right">Outflow</th>
-            <th className="w-24 px-2 py-1.5 text-right">Inflow</th>
-            <th className="w-20 px-2 py-1.5 text-center"> </th>
+            <th className="w-36 px-2 py-1.5">Category</th>
+            <th className="min-w-[5rem] px-2 py-1.5">Memo</th>
+            <th className="w-24 border-l border-border-hairline/80 px-2 py-1.5 text-right">
+              Outflow
+            </th>
+            <th className="w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right">
+              Inflow
+            </th>
+            <th className="w-24 border-l border-border-hairline/80 px-2 py-1.5 text-center">
+              Action
+            </th>
           </tr>
         </thead>
         <tbody>
