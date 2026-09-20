@@ -7,6 +7,11 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - `get_plaid_access_token(uuid)` SECURITY DEFINER RPC for server sync
 - Baseline `ensure_user_defaults()` for profile + flat category seed
 
+## 20260920_fix_plaid_items_grants.sql
+- Restores table-level `INSERT`/`UPDATE`/`DELETE` on `plaid_items` for PostgREST
+- Keeps `access_token` unselectable; metadata columns remain SELECT-able
+- Fixes Link exchange error: `permission denied for table plaid_items`
+
 ## 20260919_category_hierarchy_emoji.sql
 - `categories.parent_id` + `categories.sort_order`
 - Hierarchical default categories with emoji icons
