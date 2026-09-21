@@ -25,7 +25,10 @@ import {
 import CategoryForm from '../Categories/CategoryForm'
 import TargetModal from './TargetModal'
 import MoveMoneyModal from './MoveMoneyModal'
+import ActivityDetailModal from './ActivityDetailModal'
 import Icon from '../ui/Icon'
+import { listActivityLines } from '../../lib/budgetMath'
+import { formatMonthLabel } from '../../lib/money'
 
 function statusDot(available) {
   if (available < 0) return 'bg-status-error'
@@ -223,6 +226,7 @@ function CategoryRowContent({
   onAddChild,
   onOpenTarget,
   onCover,
+  onOpenActivity,
   dragHandleProps,
   isOverlay = false,
 }) {
@@ -355,7 +359,18 @@ function CategoryRowContent({
         )}
       </div>
       <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
-        ${activity.toFixed(0)}
+        {!isOverlay && !manageMode && activity > 0 ? (
+          <button
+            type="button"
+            onClick={() => onOpenActivity?.(category)}
+            className="rounded px-1.5 py-0.5 font-semibold tabular-nums text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+            title="See transactions in this activity"
+          >
+            ${activity.toFixed(0)}
+          </button>
+        ) : (
+          <span className="tabular-nums">${activity.toFixed(0)}</span>
+        )}
       </div>
       <div
         className={`col-span-2 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
@@ -368,21 +383,23 @@ function CategoryRowContent({
             +{carryover.toFixed(0)}
           </span>
         )}
-        <span>{formatSignedDollars(available)}</span>
+        {!isGroup && !manageMode && !isOverlay && available < 0 ? (
+          <button
+            type="button"
+            onClick={() => onCover?.(category)}
+            className="rounded px-1.5 py-0.5 text-label-sm font-semibold tabular-nums text-status-error hover:bg-status-error/10"
+            title="Cover overspending"
+          >
+            {formatSignedDollars(available)}
+          </button>
+        ) : (
+          <span className="tabular-nums">{formatSignedDollars(available)}</span>
+        )}
         <span
           className={`h-1.5 w-1.5 rounded-full ${statusDot(available)} ${
             available < 0 ? 'animate-pulse' : ''
           }`}
         />
-        {!isGroup && !manageMode && !isOverlay && available < 0 && (
-          <button
-            type="button"
-            onClick={() => onCover?.(category)}
-            className="ml-1 rounded px-1 py-0.5 text-label-sm font-semibold text-status-error hover:bg-status-error/10"
-          >
-            Cover
-          </button>
-        )}
       </div>
       <div
         className="col-span-2 text-right text-body-sm tabular-nums text-on-surface-variant"
@@ -426,6 +443,8 @@ function SortableCategoryRow(props) {
 export default function BudgetAllocationTable() {
   const storeCategories = useTransactionStore((state) => state.categories)
   const accounts = useTransactionStore((state) => state.accounts)
+  const transactions = useTransactionStore((state) => state.transactions)
+  const splits = useTransactionStore((state) => state.splits)
   const createCategory = useTransactionStore((state) => state.createCategory)
   const updateCategory = useTransactionStore((state) => state.updateCategory)
   const deleteCategory = useTransactionStore((state) => state.deleteCategory)
@@ -451,6 +470,7 @@ export default function BudgetAllocationTable() {
   const clearTarget = useBudgetStore((state) => state.clearTarget)
   const expandedGroups = useBudgetStore((state) => state.expandedGroups)
   const toggleGroup = useBudgetStore((state) => state.toggleGroup)
+  const currentMonth = useBudgetStore((state) => state.currentMonth)
 
   const [manageMode, setManageMode] = useState(false)
   const [draftCategories, setDraftCategories] = useState(null)
@@ -463,6 +483,7 @@ export default function BudgetAllocationTable() {
   const [toolbarBusy, setToolbarBusy] = useState(false)
   const [targetCategory, setTargetCategory] = useState(null)
   const [moveModal, setMoveModal] = useState(null)
+  const [activityCategory, setActivityCategory] = useState(null)
 
   const categories = draftCategories || storeCategories
 
@@ -580,6 +601,34 @@ export default function BudgetAllocationTable() {
       categoryName: category.name,
     })
   }
+
+  const handleOpenActivity = (category) => {
+    setActivityCategory(category)
+  }
+
+  const activityLines = useMemo(() => {
+    if (!activityCategory) return []
+    const ids = []
+    const walk = (id) => {
+      ids.push(id)
+      for (const child of categories.filter((c) => c.parentId === id)) {
+        walk(child.id)
+      }
+    }
+    walk(activityCategory.id)
+    const splitsByTxn = {}
+    for (const s of splits || []) {
+      if (!splitsByTxn[s.transactionId]) splitsByTxn[s.transactionId] = []
+      splitsByTxn[s.transactionId].push(s)
+    }
+    return listActivityLines({
+      categoryIds: ids,
+      month: currentMonth,
+      transactions,
+      splitsByTxn,
+      categories,
+    })
+  }, [activityCategory, categories, transactions, splits, currentMonth])
 
   const handleSaveBudget = async (categoryId) => {
     const amount = parseFloat(editValue) || 0
@@ -778,6 +827,7 @@ export default function BudgetAllocationTable() {
       }),
     onOpenTarget: (cat) => setTargetCategory(cat),
     onCover: handleCover,
+    onOpenActivity: handleOpenActivity,
   })
 
   const panelParents =
@@ -1116,6 +1166,15 @@ export default function BudgetAllocationTable() {
           onMove={moveMoney}
           onCover={coverOverspending}
           onClose={() => setMoveModal(null)}
+        />
+      )}
+
+      {activityCategory && (
+        <ActivityDetailModal
+          categoryName={activityCategory.name}
+          monthLabel={formatMonthLabel(currentMonth)}
+          lines={activityLines}
+          onClose={() => setActivityCategory(null)}
         />
       )}
     </div>
