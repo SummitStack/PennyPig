@@ -316,6 +316,10 @@ export default function TransactionsPage() {
     if (!hydrated) loadData()
   }, [hydrated, loadData])
 
+  useEffect(() => {
+    loadBudgets()
+  }, [loadBudgets])
+
   const expenseTree = buildCategoryTree(categories, 'expense')
   const incomeLeaves = getLeafCategories(categories, 'income')
 
