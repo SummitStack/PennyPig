@@ -40,9 +40,27 @@ export function formatMoney(amount, { signed = false } = {}) {
 }
 
 export function monthKeyFromDate(date) {
-  const d = date instanceof Date ? date : new Date(String(date) + (String(date).length === 10 ? 'T00:00:00' : ''))
+  const d =
+    date instanceof Date
+      ? date
+      : new Date(String(date) + (String(date).length === 10 ? 'T00:00:00' : ''))
   if (Number.isNaN(d.getTime())) return null
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Current calendar month in local time (YYYY-MM). Avoids UTC ISO drift. */
+export function currentMonthKey(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Parse YYYY-MM as local midnight on the 1st (not UTC). */
+export function monthStartDate(month) {
+  return new Date(`${String(month)}-01T00:00:00`)
+}
+
+export function formatMonthLabel(month, opts = { month: 'long', year: 'numeric' }) {
+  return monthStartDate(month).toLocaleDateString('en-US', opts)
 }
 
 export function shiftMonth(month, delta) {
@@ -66,11 +84,11 @@ export function monthsBetween(fromMonth, toMonth) {
 }
 
 export function earliestMonth(transactions) {
-  if (!transactions?.length) return new Date().toISOString().slice(0, 7)
+  if (!transactions?.length) return currentMonthKey()
   let min = null
   for (const t of transactions) {
     const key = monthKeyFromDate(t.date)
     if (key && (!min || key < min)) min = key
   }
-  return min || new Date().toISOString().slice(0, 7)
+  return min || currentMonthKey()
 }

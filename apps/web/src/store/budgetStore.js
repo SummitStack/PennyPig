@@ -11,9 +11,9 @@ import {
   targetNeededForMonth,
   underfundedAmount,
 } from '../lib/budgetMath'
-import { shiftMonth } from '../lib/money'
+import { shiftMonth, currentMonthKey } from '../lib/money'
 
-const currentMonth = new Date().toISOString().slice(0, 7)
+const currentMonth = currentMonthKey()
 
 function splitsIndex(splits) {
   const map = {}
