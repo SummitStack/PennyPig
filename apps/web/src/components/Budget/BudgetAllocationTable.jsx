@@ -39,6 +39,67 @@ function statusText(available) {
   return 'text-status-success'
 }
 
+function formatSignedDollars(n) {
+  const v = Number(n) || 0
+  return `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(0)}`
+}
+
+/** True when category hangs under the Savings Goals system parent. */
+function isSavingsCategory(categories, cat) {
+  let cur = cat
+  let guard = 0
+  while (cur && guard < 8) {
+    if (cur.name === 'Savings Goals' && isBudgetParent(cur)) return true
+    cur = cur.parentId ? categories.find((c) => c.id === cur.parentId) : null
+    guard += 1
+  }
+  return false
+}
+
+/**
+ * Account Balance column:
+ * - Linked / CC payment category → real account balance
+ * - Savings goals → envelope available (parked savings)
+ * - Other expenses → carryover (bill rollover into this month)
+ */
+function categoryAccountBalance({
+  category,
+  categories,
+  accounts,
+  getAvailableFor,
+  getCarryoverFor,
+}) {
+  if (!category || category.type === 'income') return null
+
+  if (category.linkedAccountId) {
+    const acct = accounts.find((a) => a.id === category.linkedAccountId)
+    return acct ? Number(acct.balance) || 0 : 0
+  }
+
+  const ccAcct = accounts.find((a) => a.creditCardCategoryId === category.id)
+  if (ccAcct) return Number(ccAcct.balance) || 0
+
+  const children = categories.filter((c) => c.parentId === category.id)
+  if (children.length > 0) {
+    return children.reduce((sum, child) => {
+      const bal = categoryAccountBalance({
+        category: child,
+        categories,
+        accounts,
+        getAvailableFor,
+        getCarryoverFor,
+      })
+      return sum + (bal == null ? 0 : bal)
+    }, 0)
+  }
+
+  if (isSavingsCategory(categories, category)) {
+    return getAvailableFor(category.id)
+  }
+
+  return getCarryoverFor(category.id)
+}
+
 function MoneyCell({
   categoryId,
   budgeted,
@@ -148,6 +209,7 @@ function CategoryRowContent({
   budgeted,
   activity,
   available,
+  accountBalance,
   carryover,
   underfunded,
   hasTarget,
@@ -192,7 +254,7 @@ function CategoryRowContent({
           : ''
       }`}
     >
-      <div className={`col-span-5 flex min-w-0 items-center gap-0.5 ${pad}`}>
+      <div className={`col-span-4 flex min-w-0 items-center gap-0.5 ${pad}`}>
         {canDrag ? (
           <button
             type="button"
@@ -296,18 +358,17 @@ function CategoryRowContent({
         ${activity.toFixed(0)}
       </div>
       <div
-        className={`col-span-3 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
+        className={`col-span-2 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
           available
         )}`}
+        title="Left in this category this month"
       >
         {carryover > 0 && !isOverlay && (
-          <span className="text-label-sm text-on-surface-variant" title="Carryover">
+          <span className="text-label-sm text-on-surface-variant" title="Rolled in from prior month">
             +{carryover.toFixed(0)}
           </span>
         )}
-        <span>
-          {available < 0 ? '-' : ''}${Math.abs(available).toFixed(0)}
-        </span>
+        <span>{formatSignedDollars(available)}</span>
         <span
           className={`h-1.5 w-1.5 rounded-full ${statusDot(available)} ${
             available < 0 ? 'animate-pulse' : ''
@@ -322,6 +383,12 @@ function CategoryRowContent({
             Cover
           </button>
         )}
+      </div>
+      <div
+        className="col-span-2 text-right text-body-sm tabular-nums text-on-surface-variant"
+        title="Account / savings balance (rollover for bills)"
+      >
+        {accountBalance == null ? '—' : formatSignedDollars(accountBalance)}
       </div>
     </div>
   )
@@ -358,6 +425,7 @@ function SortableCategoryRow(props) {
 
 export default function BudgetAllocationTable() {
   const storeCategories = useTransactionStore((state) => state.categories)
+  const accounts = useTransactionStore((state) => state.accounts)
   const createCategory = useTransactionStore((state) => state.createCategory)
   const updateCategory = useTransactionStore((state) => state.updateCategory)
   const deleteCategory = useTransactionStore((state) => state.deleteCategory)
@@ -456,6 +524,18 @@ export default function BudgetAllocationTable() {
 
   const draftAvailableFor = (categoryId) => getAvailableFor(categoryId)
   const draftCarryoverFor = (categoryId) => getCarryoverFor(categoryId)
+
+  const draftAccountBalanceFor = (categoryId) => {
+    const category = categories.find((c) => c.id === categoryId)
+    if (!category) return null
+    return categoryAccountBalance({
+      category,
+      categories,
+      accounts,
+      getAvailableFor,
+      getCarryoverFor,
+    })
+  }
 
   const incomeLeaves = useMemo(
     () => getLeafCategories(categories, 'income'),
@@ -648,6 +728,19 @@ export default function BudgetAllocationTable() {
   const totalBudgeted = getTotalBudgeted()
   const totalActivity = getTotalActivity()
   const totalAvailable = getTotalAvailable()
+  const totalAccountBalance = useMemo(() => {
+    const roots = categories.filter((c) => c.type === 'expense' && !c.parentId)
+    return roots.reduce((sum, cat) => {
+      const bal = categoryAccountBalance({
+        category: cat,
+        categories,
+        accounts,
+        getAvailableFor,
+        getCarryoverFor,
+      })
+      return sum + (bal == null ? 0 : bal)
+    }, 0)
+  }, [categories, accounts, getAvailableFor, getCarryoverFor])
 
   const rowProps = (row) => ({
     category: row.category,
@@ -659,6 +752,7 @@ export default function BudgetAllocationTable() {
     budgeted: draftBudgetedFor(row.id),
     activity: draftActivityFor(row.id),
     available: draftAvailableFor(row.id),
+    accountBalance: draftAccountBalanceFor(row.id),
     carryover: draftCarryoverFor(row.id),
     underfunded: row.isGroup ? 0 : getUnderfundedFor(row.id),
     hasTarget: Boolean(getTargetFor(row.id)),
@@ -828,7 +922,7 @@ export default function BudgetAllocationTable() {
       )}
 
       <div className="grid grid-cols-12 border-b border-border-hairline pb-1.5 text-label-sm font-semibold tracking-wide text-on-surface-variant">
-        <div className="col-span-5 flex items-center gap-1">
+        <div className="col-span-4 flex items-center gap-1">
           <span>CATEGORY</span>
           <button
             type="button"
@@ -847,13 +941,18 @@ export default function BudgetAllocationTable() {
         </div>
         <div className="col-span-2 text-center">BUDGETED</div>
         <div className="col-span-2 text-center">ACTIVITY</div>
-        <div className="col-span-3 text-right">AVAILABLE</div>
+        <div className="col-span-2 text-right" title="Left in category this month">
+          AVAILABLE
+        </div>
+        <div className="col-span-2 text-right" title="Account / savings balance">
+          BALANCE
+        </div>
       </div>
 
       {/* Income: expected vs received so leftovers can be assigned below */}
       <div className="mb-1 flex flex-col border-b border-border-hairline pb-1">
         <div className="grid grid-cols-12 items-center bg-sage-accent/10 py-1.5">
-          <div className="col-span-5 flex items-center gap-1 pl-6">
+          <div className="col-span-4 flex items-center gap-1 pl-6">
             <span className="text-sm" aria-hidden>
               💰
             </span>
@@ -871,13 +970,15 @@ export default function BudgetAllocationTable() {
             ${incomeTotals.received.toFixed(0)}
           </div>
           <div
-            className={`col-span-3 text-right text-body-sm font-medium ${
+            className={`col-span-2 text-right text-body-sm font-medium ${
               incomeTotals.extra >= 0 ? 'text-status-success' : 'text-status-error'
             }`}
+            title="Received − expected"
           >
             {incomeTotals.extra < 0 ? '-' : '+'}$
             {Math.abs(incomeTotals.extra).toFixed(0)}
           </div>
+          <div className="col-span-2 text-right text-body-sm text-on-surface-variant">—</div>
         </div>
         {incomeLeaves.length === 0 && (
           <p className="py-2 pl-12 text-body-sm text-on-surface-variant">
@@ -893,7 +994,7 @@ export default function BudgetAllocationTable() {
               key={`income-${cat.id}`}
               className="grid grid-cols-12 items-center py-1 pl-0"
             >
-              <div className="col-span-5 flex min-w-0 items-center gap-0.5 pl-10">
+              <div className="col-span-4 flex min-w-0 items-center gap-0.5 pl-10">
                 <span className="w-6" />
                 <span className="w-6" />
                 <span className="text-sm leading-none" aria-hidden>
@@ -931,12 +1032,15 @@ export default function BudgetAllocationTable() {
                 ${received.toFixed(0)}
               </div>
               <div
-                className={`col-span-3 text-right text-body-sm font-medium ${
+                className={`col-span-2 text-right text-body-sm font-medium ${
                   extra >= 0 ? 'text-status-success' : 'text-status-error'
                 }`}
                 title="Received − expected (extra to assign via Ready to Assign)"
               >
                 {extra < 0 ? '-' : '+'}${Math.abs(extra).toFixed(0)}
+              </div>
+              <div className="col-span-2 text-right text-body-sm text-on-surface-variant">
+                —
               </div>
             </div>
           )
@@ -978,17 +1082,20 @@ export default function BudgetAllocationTable() {
       </DndContext>
 
       <div className="mt-2 grid grid-cols-12 items-center border-t border-border-hairline pt-2 font-bold text-on-surface">
-        <div className="col-span-5 text-body-md">TOTALS</div>
+        <div className="col-span-4 text-body-md">TOTALS</div>
         <div className="col-span-2 text-center text-body-md">${totalBudgeted.toFixed(0)}</div>
         <div className="col-span-2 text-center text-body-md text-on-surface-variant">
           ${totalActivity.toFixed(0)}
         </div>
         <div
-          className={`col-span-3 text-right text-body-md ${
+          className={`col-span-2 text-right text-body-md ${
             totalAvailable < 0 ? 'text-status-error' : 'text-sage-accent'
           }`}
         >
-          {totalAvailable < 0 ? '-' : ''}${Math.abs(totalAvailable).toFixed(0)}
+          {formatSignedDollars(totalAvailable)}
+        </div>
+        <div className="col-span-2 text-right text-body-md text-on-surface-variant">
+          {formatSignedDollars(totalAccountBalance)}
         </div>
       </div>
 

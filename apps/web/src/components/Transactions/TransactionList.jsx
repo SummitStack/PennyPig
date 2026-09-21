@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTransactionStore } from '../../store/transactionStore'
+import { useBudgetStore } from '../../store/budgetStore'
 import { getLeafCategories } from '../../lib/categories'
 import { leafExpenseOptgroups, resolveToLeafCategoryId } from '../../lib/categorySuggest'
 import { absAmount, formatMoney, isInflow } from '../../lib/money'
@@ -32,6 +33,18 @@ const SORTABLE_COLUMNS = [
     className: 'w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right',
   },
   {
+    key: 'available',
+    label: 'Available',
+    align: 'right',
+    className: 'w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right',
+  },
+  {
+    key: 'balance',
+    label: 'Balance',
+    align: 'right',
+    className: 'w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right',
+  },
+  {
     key: 'cleared',
     label: 'Action',
     align: 'center',
@@ -50,7 +63,7 @@ function categorySortLabel(txn) {
   return String(txn.category || 'Uncategorized').toLowerCase()
 }
 
-function sortValue(txn, key) {
+function sortValue(txn, key, { getAvailableFor, accountsById } = {}) {
   switch (key) {
     case 'account':
       return String(txn.account || '').toLowerCase()
@@ -66,6 +79,14 @@ function sortValue(txn, key) {
       return !isInflow(txn.amount) ? absAmount(txn.amount) : null
     case 'inflow':
       return isInflow(txn.amount) ? absAmount(txn.amount) : null
+    case 'available': {
+      if (txn.transferAccountId || txn.isSplit || !txn.categoryId) return null
+      return getAvailableFor?.(txn.categoryId) ?? null
+    }
+    case 'balance': {
+      const bal = accountsById?.[txn.accountId]?.balance
+      return bal == null ? null : Number(bal)
+    }
     case 'cleared':
       return txn.cleared === false ? 0 : 1
     default:
@@ -450,6 +471,8 @@ function TransactionRow({
   categories,
   selected,
   splitOpen,
+  categoryAvailable,
+  accountBalance,
   onToggleSelected,
   onToggleSplit,
   onCategorize,
@@ -540,6 +563,22 @@ function TransactionRow({
         <td className="border-l border-border-hairline/50 bg-sage-accent/5 px-2 py-1 text-right tabular-nums text-sage-accent">
           {inflowAmt != null ? `+${formatMoney(inflowAmt)}` : ''}
         </td>
+        <td
+          className="border-l border-border-hairline/50 px-2 py-1 text-right tabular-nums text-on-surface"
+          title="Left in category this month"
+        >
+          {categoryAvailable == null
+            ? ''
+            : `${categoryAvailable < 0 ? '-' : ''}${formatMoney(Math.abs(categoryAvailable))}`}
+        </td>
+        <td
+          className="border-l border-border-hairline/50 px-2 py-1 text-right tabular-nums text-on-surface-variant"
+          title="Account balance"
+        >
+          {accountBalance == null
+            ? ''
+            : `${accountBalance < 0 ? '-' : ''}${formatMoney(Math.abs(accountBalance))}`}
+        </td>
         <td className="border-l border-border-hairline/80 px-2 py-1">
           <div className="flex items-center justify-center gap-0.5">
             {!isTransfer && (
@@ -562,23 +601,23 @@ function TransactionRow({
                 e.stopPropagation()
                 onToggleCleared(txn.id)
               }}
-              className="inline-flex cursor-pointer items-center justify-center"
+              className={`inline-flex cursor-pointer items-center justify-center rounded p-0.5 ${
+                txn.cleared
+                  ? 'text-status-success hover:bg-status-success/10'
+                  : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+              }`}
               title={
                 txn.cleared
-                  ? 'Cleared — on budget. Click to uncleared.'
-                  : 'Uncleared — not on budget yet. Review category, then clear.'
+                  ? 'Locked & cleared — on budget. Click to unlock and unclear.'
+                  : 'Unlocked — not on budget yet. Click to clear and lock.'
               }
-              aria-label={txn.cleared ? 'Cleared' : 'Uncleared'}
+              aria-label={txn.cleared ? 'Unlock and unclear' : 'Clear and lock'}
             >
-              {txn.cleared ? (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-status-success text-[11px] font-bold text-on-primary">
-                  c
-                </span>
-              ) : (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-outline-variant text-[11px] text-on-surface-variant">
-                  c
-                </span>
-              )}
+              <Icon
+                name={txn.cleared ? 'lock' : 'lock_open'}
+                className="text-[18px]"
+                filled={txn.cleared}
+              />
             </button>
             <button
               type="button"
@@ -597,7 +636,7 @@ function TransactionRow({
       </tr>
       {splitOpen && !isTransfer && (
         <tr className="border-b border-border-hairline/70 bg-surface-container/40">
-          <td colSpan={9} className="px-3 py-2">
+          <td colSpan={11} className="px-3 py-2">
             <SplitEditor
               txn={txn}
               categories={categories}
@@ -629,6 +668,9 @@ export default function TransactionList() {
   const setSplits = useTransactionStore((state) => state.setSplits)
   const clearSplits = useTransactionStore((state) => state.clearSplits)
   const deleteTransaction = useTransactionStore((state) => state.deleteTransaction)
+  const getAvailableFor = useBudgetStore((state) => state.getAvailableFor)
+  const budgets = useBudgetStore((state) => state.budgets)
+  const currentMonth = useBudgetStore((state) => state.currentMonth)
 
   const [splitOpenId, setSplitOpenId] = useState(null)
   const [sortKey, setSortKey] = useState(null)
@@ -642,10 +684,11 @@ export default function TransactionList() {
   const filtered = useMemo(() => {
     const rows = useTransactionStore.getState().getFilteredTransactions()
     if (!sortKey) return rows
+    const ctx = { getAvailableFor, accountsById }
     return [...rows].sort((a, b) => {
       const primary = compareSortValues(
-        sortValue(a, sortKey),
-        sortValue(b, sortKey),
+        sortValue(a, sortKey, ctx),
+        sortValue(b, sortKey, ctx),
         sortDir
       )
       if (primary !== 0) return primary
@@ -653,7 +696,16 @@ export default function TransactionList() {
       if (byDate !== 0) return byDate
       return String(a.id).localeCompare(String(b.id))
     })
-  }, [transactions, filter, sortKey, sortDir])
+  }, [
+    transactions,
+    filter,
+    sortKey,
+    sortDir,
+    getAvailableFor,
+    accountsById,
+    budgets,
+    currentMonth,
+  ])
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -661,7 +713,15 @@ export default function TransactionList() {
       return
     }
     setSortKey(key)
-    setSortDir(key === 'date' || key === 'outflow' || key === 'inflow' ? 'desc' : 'asc')
+    setSortDir(
+      key === 'date' ||
+        key === 'outflow' ||
+        key === 'inflow' ||
+        key === 'available' ||
+        key === 'balance'
+        ? 'desc'
+        : 'asc'
+    )
   }
 
   const allSelected =
@@ -686,7 +746,7 @@ export default function TransactionList() {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[56rem] border-collapse text-body-sm">
+      <table className="w-full min-w-[68rem] border-collapse text-body-sm">
         <thead>
           <tr className="border-b border-border-hairline text-left text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
             <th className="w-8 px-2 py-1.5">
@@ -713,32 +773,44 @@ export default function TransactionList() {
           {filtered.length === 0 && (
             <tr>
               <td
-                colSpan={9}
+                colSpan={11}
                 className="px-4 py-8 text-center text-body-sm text-on-surface-variant"
               >
                 No transactions yet. Use Bank Import to sync, or Add Transaction.
               </td>
             </tr>
           )}
-          {filtered.map((txn) => (
-            <TransactionRow
-              key={txn.id}
-              txn={txn}
-              accountsById={accountsById}
-              categories={categories}
-              selected={selectedIds.includes(txn.id)}
-              splitOpen={splitOpenId === txn.id}
-              onToggleSelected={toggleSelected}
-              onToggleSplit={toggleSplit}
-              onCategorize={categorizeTransaction}
-              onRenamePayee={renamePayee}
-              onUpdateMemo={updateMemo}
-              onToggleCleared={toggleCleared}
-              onSetSplits={setSplits}
-              onClearSplits={clearSplits}
-              onDelete={handleDelete}
-            />
-          ))}
+          {filtered.map((txn) => {
+            const categoryAvailable =
+              txn.transferAccountId || txn.isSplit || !txn.categoryId
+                ? null
+                : getAvailableFor(txn.categoryId)
+            const accountBalance =
+              txn.accountId != null && accountsById[txn.accountId]
+                ? Number(accountsById[txn.accountId].balance) || 0
+                : null
+            return (
+              <TransactionRow
+                key={txn.id}
+                txn={txn}
+                accountsById={accountsById}
+                categories={categories}
+                selected={selectedIds.includes(txn.id)}
+                splitOpen={splitOpenId === txn.id}
+                categoryAvailable={categoryAvailable}
+                accountBalance={accountBalance}
+                onToggleSelected={toggleSelected}
+                onToggleSplit={toggleSplit}
+                onCategorize={categorizeTransaction}
+                onRenamePayee={renamePayee}
+                onUpdateMemo={updateMemo}
+                onToggleCleared={toggleCleared}
+                onSetSplits={setSplits}
+                onClearSplits={clearSplits}
+                onDelete={handleDelete}
+              />
+            )
+          })}
         </tbody>
       </table>
     </div>
