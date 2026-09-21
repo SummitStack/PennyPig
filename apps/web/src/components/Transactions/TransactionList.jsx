@@ -13,6 +13,107 @@ function formatDate(d) {
   return `${mm}/${dd}/${yyyy}`
 }
 
+const SORTABLE_COLUMNS = [
+  { key: 'account', label: 'Account', align: 'left', className: 'w-28 px-2 py-1.5' },
+  { key: 'date', label: 'Date', align: 'left', className: 'w-24 px-2 py-1.5' },
+  { key: 'payee', label: 'Payee', align: 'left', className: 'min-w-[9rem] px-2 py-1.5' },
+  { key: 'category', label: 'Category', align: 'left', className: 'w-36 px-2 py-1.5' },
+  { key: 'memo', label: 'Memo', align: 'left', className: 'min-w-[5rem] px-2 py-1.5' },
+  {
+    key: 'outflow',
+    label: 'Outflow',
+    align: 'right',
+    className: 'w-24 border-l border-border-hairline/80 px-2 py-1.5 text-right',
+  },
+  {
+    key: 'inflow',
+    label: 'Inflow',
+    align: 'right',
+    className: 'w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right',
+  },
+  {
+    key: 'cleared',
+    label: 'Action',
+    align: 'center',
+    className: 'w-24 border-l border-border-hairline/80 px-2 py-1.5 text-center',
+  },
+]
+
+function categorySortLabel(txn) {
+  if (txn.transferAccountId) return 'Transfer'
+  if (txn.isSplit) {
+    return (txn.splits || [])
+      .map((s) => s.category || 'Uncategorized')
+      .join(', ')
+      .toLowerCase()
+  }
+  return String(txn.category || 'Uncategorized').toLowerCase()
+}
+
+function sortValue(txn, key) {
+  switch (key) {
+    case 'account':
+      return String(txn.account || '').toLowerCase()
+    case 'date':
+      return new Date(txn.date).getTime() || 0
+    case 'payee':
+      return String(txn.payee || txn.merchant || '').toLowerCase()
+    case 'category':
+      return categorySortLabel(txn)
+    case 'memo':
+      return String(txn.memo || '').toLowerCase()
+    case 'outflow':
+      return !isInflow(txn.amount) ? absAmount(txn.amount) : null
+    case 'inflow':
+      return isInflow(txn.amount) ? absAmount(txn.amount) : null
+    case 'cleared':
+      return txn.cleared === false ? 0 : 1
+    default:
+      return 0
+  }
+}
+
+function compareSortValues(a, b, direction) {
+  const dir = direction === 'asc' ? 1 : -1
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  if (typeof a === 'string' && typeof b === 'string') {
+    return a.localeCompare(b) * dir
+  }
+  if (a < b) return -1 * dir
+  if (a > b) return 1 * dir
+  return 0
+}
+
+function SortableTh({ column, sortKey, sortDir, onSort }) {
+  const active = sortKey === column.key
+  const icon = !active ? 'unfold_more' : sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward'
+  const justify =
+    column.align === 'right'
+      ? 'justify-end'
+      : column.align === 'center'
+        ? 'justify-center'
+        : 'justify-start'
+
+  return (
+    <th className={column.className} aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button
+        type="button"
+        onClick={() => onSort(column.key)}
+        className={`inline-flex w-full items-center gap-0.5 ${justify} rounded px-0.5 py-0.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container hover:text-on-surface`}
+        title={`Sort by ${column.label}`}
+      >
+        <span>{column.label}</span>
+        <Icon
+          name={icon}
+          className={`text-[14px] ${active ? 'text-cool-blue' : 'opacity-50'}`}
+        />
+      </button>
+    </th>
+  )
+}
+
 function CategorySelect({ value, categories, onChange, disabled = false }) {
   const expenseGroups = leafExpenseOptgroups(categories)
   const incomeLeaves = getLeafCategories(categories, 'income')
@@ -530,6 +631,8 @@ export default function TransactionList() {
   const deleteTransaction = useTransactionStore((state) => state.deleteTransaction)
 
   const [splitOpenId, setSplitOpenId] = useState(null)
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('desc')
 
   const accountsById = useMemo(
     () => Object.fromEntries(accounts.map((a) => [a.id, a])),
@@ -537,8 +640,29 @@ export default function TransactionList() {
   )
 
   const filtered = useMemo(() => {
-    return useTransactionStore.getState().getFilteredTransactions()
-  }, [transactions, filter])
+    const rows = useTransactionStore.getState().getFilteredTransactions()
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      const primary = compareSortValues(
+        sortValue(a, sortKey),
+        sortValue(b, sortKey),
+        sortDir
+      )
+      if (primary !== 0) return primary
+      const byDate = new Date(b.date) - new Date(a.date)
+      if (byDate !== 0) return byDate
+      return String(a.id).localeCompare(String(b.id))
+    })
+  }, [transactions, filter, sortKey, sortDir])
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortKey(key)
+    setSortDir(key === 'date' || key === 'outflow' || key === 'inflow' ? 'desc' : 'asc')
+  }
 
   const allSelected =
     filtered.length > 0 && filtered.every((t) => selectedIds.includes(t.id))
@@ -574,25 +698,15 @@ export default function TransactionList() {
                 className="accent-primary"
               />
             </th>
-            <th className="w-28 px-2 py-1.5">Account</th>
-            <th className="w-24 px-2 py-1.5">
-              <span className="inline-flex items-center gap-0.5">
-                Date
-                <Icon name="arrow_drop_down" className="text-[14px]" />
-              </span>
-            </th>
-            <th className="min-w-[9rem] px-2 py-1.5">Payee</th>
-            <th className="w-36 px-2 py-1.5">Category</th>
-            <th className="min-w-[5rem] px-2 py-1.5">Memo</th>
-            <th className="w-24 border-l border-border-hairline/80 px-2 py-1.5 text-right">
-              Outflow
-            </th>
-            <th className="w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right">
-              Inflow
-            </th>
-            <th className="w-24 border-l border-border-hairline/80 px-2 py-1.5 text-center">
-              Action
-            </th>
+            {SORTABLE_COLUMNS.map((column) => (
+              <SortableTh
+                key={column.key}
+                column={column}
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+            ))}
           </tr>
         </thead>
         <tbody>
