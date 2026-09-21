@@ -8,12 +8,7 @@ import BudgetAllocationTable from '../components/Budget/BudgetAllocationTable'
 import MonthClosePanel from '../components/Budget/MonthClosePanel'
 import Icon from '../components/ui/Icon'
 import { authFetch } from '../lib/authFetch'
-
-function shiftMonth(month, delta) {
-  const [y, m] = month.split('-').map(Number)
-  const d = new Date(y, m - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
+import { formatMonthLabel, shiftMonth } from '../lib/money'
 
 function accountIcon(type) {
   if (type === 'credit') return 'credit_card'
@@ -38,10 +33,7 @@ export default function BudgetsPage() {
     loadBudgetHistory()
   }, [loadBudgetHistory])
 
-  const monthName = new Date(`${currentMonth}-01`).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
+  const monthName = formatMonthLabel(currentMonth)
 
   const changeMonth = async (delta) => {
     const next = shiftMonth(currentMonth, delta)
