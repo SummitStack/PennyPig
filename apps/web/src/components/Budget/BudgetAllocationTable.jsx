@@ -366,6 +366,8 @@ export default function BudgetAllocationTable() {
   const updateBudget = useBudgetStore((state) => state.updateBudget)
   const getBudgetedFor = useBudgetStore((state) => state.getBudgetedFor)
   const getActivityFor = useBudgetStore((state) => state.getActivityFor)
+  const getIncomeActivityFor = useBudgetStore((state) => state.getIncomeActivityFor)
+  const getIncomeAvailableFor = useBudgetStore((state) => state.getIncomeAvailableFor)
   const getAvailableFor = useBudgetStore((state) => state.getAvailableFor)
   const getCarryoverFor = useBudgetStore((state) => state.getCarryoverFor)
   const getUnderfundedFor = useBudgetStore((state) => state.getUnderfundedFor)
@@ -449,16 +451,26 @@ export default function BudgetAllocationTable() {
     return getBudgetedFor(categoryId)
   }
 
-  const draftActivityFor = (categoryId) => {
-    const children = categories.filter((c) => c.parentId === categoryId)
-    if (children.length > 0) {
-      return children.reduce((sum, child) => sum + draftActivityFor(child.id), 0)
-    }
-    return getActivityFor(categoryId)
-  }
+  // Always use store activity so direct group-tagged spend + children roll up.
+  const draftActivityFor = (categoryId) => getActivityFor(categoryId)
 
   const draftAvailableFor = (categoryId) => getAvailableFor(categoryId)
   const draftCarryoverFor = (categoryId) => getCarryoverFor(categoryId)
+
+  const incomeLeaves = useMemo(
+    () => getLeafCategories(categories, 'income'),
+    [categories]
+  )
+
+  const incomeTotals = useMemo(() => {
+    let expected = 0
+    let received = 0
+    for (const leaf of incomeLeaves) {
+      expected += getBudgetedFor(leaf.id)
+      received += getIncomeActivityFor(leaf.id)
+    }
+    return { expected, received, extra: received - expected }
+  }, [incomeLeaves, getBudgetedFor, getIncomeActivityFor])
 
   const leafCategories = useMemo(
     () => getLeafCategories(categories, 'expense'),
@@ -560,13 +572,19 @@ export default function BudgetAllocationTable() {
     const role = panel?.addRole || 'category'
     const result = await createCategory({
       ...values,
-      type: 'expense',
+      type: values.type || 'expense',
       parentId: values.parentId ?? panel?.parentId ?? null,
-      role,
+      role: values.type === 'income' ? undefined : role,
     })
     if (result.success) {
       setPanel(null)
-      setFlash(role === 'group' ? 'Group added' : 'Category added')
+      setFlash(
+        values.type === 'income'
+          ? 'Income category added'
+          : role === 'group'
+            ? 'Group added'
+            : 'Category added'
+      )
       if (result.category) {
         setDraftCategories((prev) =>
           prev ? [...prev, result.category] : [result.category]
@@ -783,12 +801,15 @@ export default function BudgetAllocationTable() {
                 ? panel.category
                 : {
                     emoji: panel.addRole === 'group' ? '📂' : '📁',
-                    type: 'expense',
+                    type: panel.category?.type || 'expense',
                     parentId: panel.parentId,
+                    name: panel.category?.name,
                   }
             }
             parents={panelParents}
+            categories={categories}
             addRole={panel.mode === 'add' ? panel.addRole : undefined}
+            includeIncomeGroup={panel.mode === 'add' && panel.addRole === 'category'}
             showType={false}
             allowParentChange={
               panel.mode === 'add' || !isBudgetParent(panel.category)
@@ -827,6 +848,99 @@ export default function BudgetAllocationTable() {
         <div className="col-span-2 text-center">BUDGETED</div>
         <div className="col-span-2 text-center">ACTIVITY</div>
         <div className="col-span-3 text-right">AVAILABLE</div>
+      </div>
+
+      {/* Income: expected vs received so leftovers can be assigned below */}
+      <div className="mb-1 flex flex-col border-b border-border-hairline pb-1">
+        <div className="grid grid-cols-12 items-center bg-sage-accent/10 py-1.5">
+          <div className="col-span-5 flex items-center gap-1 pl-6">
+            <span className="text-sm" aria-hidden>
+              💰
+            </span>
+            <span className="font-headline-sm font-bold uppercase tracking-wider text-on-surface">
+              Income
+            </span>
+            <span className="ml-2 text-label-sm font-normal normal-case tracking-normal text-on-surface-variant">
+              Expected vs received
+            </span>
+          </div>
+          <div className="col-span-2 text-center text-body-sm font-semibold text-on-surface">
+            ${incomeTotals.expected.toFixed(0)}
+          </div>
+          <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
+            ${incomeTotals.received.toFixed(0)}
+          </div>
+          <div
+            className={`col-span-3 text-right text-body-sm font-medium ${
+              incomeTotals.extra >= 0 ? 'text-status-success' : 'text-status-error'
+            }`}
+          >
+            {incomeTotals.extra < 0 ? '-' : '+'}$
+            {Math.abs(incomeTotals.extra).toFixed(0)}
+          </div>
+        </div>
+        {incomeLeaves.length === 0 && (
+          <p className="py-2 pl-12 text-body-sm text-on-surface-variant">
+            No income categories yet. Use Edit → Add category → Group: Income.
+          </p>
+        )}
+        {incomeLeaves.map((cat) => {
+          const expected = getBudgetedFor(cat.id)
+          const received = getIncomeActivityFor(cat.id)
+          const extra = getIncomeAvailableFor(cat.id)
+          return (
+            <div
+              key={`income-${cat.id}`}
+              className="grid grid-cols-12 items-center py-1 pl-0"
+            >
+              <div className="col-span-5 flex min-w-0 items-center gap-0.5 pl-10">
+                <span className="w-6" />
+                <span className="w-6" />
+                <span className="text-sm leading-none" aria-hidden>
+                  {cat.emoji || '💰'}
+                </span>
+                {manageMode ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPanel({ mode: 'edit', category: cat })
+                    }
+                    className="min-w-0 truncate rounded px-1 text-left text-body-sm font-medium text-on-surface hover:bg-surface-container"
+                  >
+                    {cat.name}
+                  </button>
+                ) : (
+                  <span className="min-w-0 truncate px-1 text-body-sm font-medium text-on-surface">
+                    {cat.name}
+                  </span>
+                )}
+              </div>
+              <div className="col-span-2 text-center">
+                <MoneyCell
+                  categoryId={cat.id}
+                  budgeted={expected}
+                  editable={!manageMode}
+                  editingCell={editingCell}
+                  editValue={editValue}
+                  setEditingCell={setEditingCell}
+                  setEditValue={setEditValue}
+                  onSave={handleSaveBudget}
+                />
+              </div>
+              <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
+                ${received.toFixed(0)}
+              </div>
+              <div
+                className={`col-span-3 text-right text-body-sm font-medium ${
+                  extra >= 0 ? 'text-status-success' : 'text-status-error'
+                }`}
+                title="Received − expected (extra to assign via Ready to Assign)"
+              >
+                {extra < 0 ? '-' : '+'}${Math.abs(extra).toFixed(0)}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <DndContext

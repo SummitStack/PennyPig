@@ -6,6 +6,7 @@ import {
   computeAvailability,
   computeReadyToAssign,
   incomeForMonth,
+  incomeActivityForCategory,
   leafActivity,
   targetNeededForMonth,
   underfundedAmount,
@@ -78,7 +79,10 @@ export const useBudgetStore = create((set, get) => ({
       }
 
       const categories = useTransactionStore.getState().categories
-      const leaves = getLeafCategories(categories, 'expense')
+      const leaves = [
+        ...getLeafCategories(categories, 'expense'),
+        ...getLeafCategories(categories, 'income'),
+      ]
       for (const cat of leaves) {
         if (amounts[cat.id] === undefined) amounts[cat.id] = 0
       }
@@ -190,19 +194,52 @@ export const useBudgetStore = create((set, get) => ({
   getActivityFor: (categoryId, month = get().currentMonth) => {
     const { transactions, categories, splitsByTxn } = get()._context()
     const children = categories.filter((c) => c.parentId === categoryId)
-    if (children.length > 0) {
-      return children.reduce(
-        (sum, child) => sum + get().getActivityFor(child.id, month),
-        0
-      )
-    }
-    return leafActivity({
+    // Direct spend on this id (including mis-tagged group rows) + children
+    const direct = leafActivity({
       categoryId,
       month,
       transactions,
       splitsByTxn,
       categories,
     })
+    if (children.length > 0) {
+      return (
+        direct +
+        children.reduce(
+          (sum, child) => sum + get().getActivityFor(child.id, month),
+          0
+        )
+      )
+    }
+    return direct
+  },
+
+  getIncomeActivityFor: (categoryId, month = get().currentMonth) => {
+    const { transactions, categories } = get()._context()
+    const children = categories.filter((c) => c.parentId === categoryId)
+    const direct = incomeActivityForCategory({
+      categoryId,
+      month,
+      transactions,
+      categories,
+    })
+    if (children.length > 0) {
+      return (
+        direct +
+        children.reduce(
+          (sum, child) => sum + get().getIncomeActivityFor(child.id, month),
+          0
+        )
+      )
+    }
+    return direct
+  },
+
+  /** Expected income − received; positive = extra earnings to allocate. */
+  getIncomeAvailableFor: (categoryId, month = get().currentMonth) => {
+    const expected = get().getBudgetedFor(categoryId, month)
+    const received = get().getIncomeActivityFor(categoryId, month)
+    return received - expected
   },
 
   getCarryoverFor: (categoryId, month = get().currentMonth) => {
