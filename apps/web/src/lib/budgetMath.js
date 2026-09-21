@@ -67,6 +67,31 @@ export function leafActivity({
   return total
 }
 
+/** Cleared income (inflows) attributed to an income category in a month. */
+export function incomeActivityForCategory({
+  categoryId,
+  month,
+  transactions,
+  categories,
+}) {
+  const byId = categoryById(categories)
+  const cat = byId[categoryId]
+  if (!cat || cat.type !== 'income') return 0
+
+  let total = 0
+  for (const txn of transactions) {
+    if (txn.excludeFromBudget) continue
+    if (txn.cleared === false) continue
+    if (txn.transferAccountId && !txn.categoryId) continue
+    const key = monthKeyFromDate(txn.date)
+    if (key !== month) continue
+    if (txn.categoryId !== categoryId) continue
+    const amt = Number(txn.amount) || 0
+    if (amt < 0) total += -amt
+  }
+  return total
+}
+
 export function leafAssigned(budgetsByMonth, categoryId, month) {
   return Number(budgetsByMonth[month]?.[categoryId] || 0)
 }

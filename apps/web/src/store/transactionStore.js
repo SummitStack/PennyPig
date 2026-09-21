@@ -6,10 +6,14 @@ import {
   getChildCategories,
   isBudgetParent,
   getCategoryRole,
+  isParentCategory,
 } from '../lib/categories'
 import { normalizePayeeKey } from '../lib/payee'
 import { signedAmount, absAmount } from '../lib/money'
-import { resolveToLeafCategoryId } from '../lib/categorySuggest'
+import {
+  resolveToLeafCategoryId,
+  suggestLeafCategoryId,
+} from '../lib/categorySuggest'
 
 function isPureTransfer(txn) {
   return txn.transferAccountId && !txn.categoryId && !txn.isSplit
@@ -58,7 +62,13 @@ function rejectIfSystemParent(categories, categoryId) {
 
 function validateCreateCategory(categories, { type, parentId, role }) {
   if (type === 'income') {
-    if (parentId) return 'Income categories must be top-level.'
+    // Income leaves are top-level (or under a legacy income parent).
+    if (parentId) {
+      const parent = findCategory(categories, parentId)
+      if (!parent || parent.type !== 'income') {
+        return 'Income categories must be top-level or under Income.'
+      }
+    }
     return null
   }
   if (type !== 'expense') return null
@@ -317,9 +327,50 @@ export const useTransactionStore = create((set, get) => ({
       const splits = (splitsRes.data || []).map(mapSplit)
       const splitsIndex = splitsByTransactionId(splits)
 
-      const transactions = (transactionsRes.data || []).map((row) =>
+      let transactions = (transactionsRes.data || []).map((row) =>
         mapTransaction(row, accountsById, categoriesById, splitsIndex[row.id] || [])
       )
+
+      // Remount group/parent-tagged txns onto leaf categories so budget
+      // activity lands on the correct month rows (cleared gate still applies).
+      const remountUpdates = []
+      transactions = transactions.map((txn) => {
+        if (!txn.categoryId || txn.isSplit) return txn
+        if (!isParentCategory(categories, txn.categoryId)) return txn
+        const leafId =
+          suggestLeafCategoryId({
+            categories,
+            payee: txn.payee || '',
+            merchant: txn.merchant || '',
+          }) || resolveToLeafCategoryId(categories, txn.categoryId)
+        if (!leafId || leafId === txn.categoryId) return txn
+        const leaf = categoriesById[leafId]
+        remountUpdates.push({ id: txn.id, categoryId: leafId })
+        return {
+          ...txn,
+          categoryId: leafId,
+          category: leaf?.name || txn.category,
+          categoryEmoji: leaf?.emoji || txn.categoryEmoji,
+          categoryType: leaf?.type || txn.categoryType,
+          parentCategoryName: leaf?.parentId
+            ? categoriesById[leaf.parentId]?.name || null
+            : null,
+        }
+      })
+
+      if (remountUpdates.length > 0) {
+        await Promise.all(
+          remountUpdates.map((u) =>
+            supabase
+              .from('transactions')
+              .update({
+                category_id: u.categoryId,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', u.id)
+          )
+        )
+      }
 
       set({
         accounts,
