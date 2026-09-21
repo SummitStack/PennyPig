@@ -601,23 +601,21 @@ function TransactionRow({
                 e.stopPropagation()
                 onToggleCleared(txn.id)
               }}
-              className={`inline-flex cursor-pointer items-center justify-center rounded p-0.5 ${
-                txn.cleared
-                  ? 'text-status-success hover:bg-status-success/10'
-                  : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
-              }`}
+              className="inline-flex cursor-pointer items-center justify-center rounded p-0.5 text-status-success hover:bg-status-success/10"
               title={
                 txn.cleared
-                  ? 'Locked & cleared — on budget. Click to unlock and unclear.'
-                  : 'Unlocked — not on budget yet. Click to clear and lock.'
+                  ? 'Locked & cleared — on budget. Click to unlock (unclear).'
+                  : 'Uncleared — not on budget yet. Click to clear and lock.'
               }
               aria-label={txn.cleared ? 'Unlock and unclear' : 'Clear and lock'}
             >
-              <Icon
-                name={txn.cleared ? 'lock' : 'lock_open'}
-                className="text-[18px]"
-                filled={txn.cleared}
-              />
+              {txn.cleared ? (
+                <Icon name="lock" className="text-[18px]" filled />
+              ) : (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-status-success text-[11px] font-bold text-status-success">
+                  C
+                </span>
+              )}
             </button>
             <button
               type="button"
