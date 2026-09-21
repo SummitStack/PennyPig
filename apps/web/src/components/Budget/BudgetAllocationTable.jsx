@@ -21,6 +21,7 @@ import {
   getLeafCategories,
   getCategoryRole,
   isBudgetParent,
+  isUnderSavingsGoals,
 } from '../../lib/categories'
 import CategoryForm from '../Categories/CategoryForm'
 import TargetModal from './TargetModal'
@@ -45,18 +46,6 @@ function statusText(available) {
 function formatSignedDollars(n) {
   const v = Number(n) || 0
   return `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(0)}`
-}
-
-/** True when category hangs under the Savings Goals system parent. */
-function isSavingsCategory(categories, cat) {
-  let cur = cat
-  let guard = 0
-  while (cur && guard < 8) {
-    if (cur.name === 'Savings Goals' && isBudgetParent(cur)) return true
-    cur = cur.parentId ? categories.find((c) => c.id === cur.parentId) : null
-    guard += 1
-  }
-  return false
 }
 
 /**
@@ -96,7 +85,7 @@ function categoryAccountBalance({
     }, 0)
   }
 
-  if (isSavingsCategory(categories, category)) {
+  if (isUnderSavingsGoals(categories, category)) {
     return getAvailableFor(category.id)
   }
 
@@ -359,17 +348,17 @@ function CategoryRowContent({
         )}
       </div>
       <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
-        {!isOverlay && !manageMode && activity > 0 ? (
+        {!isOverlay && !manageMode && activity !== 0 ? (
           <button
             type="button"
             onClick={() => onOpenActivity?.(category)}
             className="rounded px-1.5 py-0.5 font-semibold tabular-nums text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-            title="See transactions in this activity"
+            title="See what makes up this activity"
           >
-            ${activity.toFixed(0)}
+            {formatSignedDollars(activity)}
           </button>
         ) : (
-          <span className="tabular-nums">${activity.toFixed(0)}</span>
+          <span className="tabular-nums">{formatSignedDollars(activity)}</span>
         )}
       </div>
       <div
@@ -621,14 +610,51 @@ export default function BudgetAllocationTable() {
       if (!splitsByTxn[s.transactionId]) splitsByTxn[s.transactionId] = []
       splitsByTxn[s.transactionId].push(s)
     }
-    return listActivityLines({
+    const outflowLines = listActivityLines({
       categoryIds: ids,
       month: currentMonth,
       transactions,
       splitsByTxn,
       categories,
     })
-  }, [activityCategory, categories, transactions, splits, currentMonth])
+
+    // Savings: budgeted funding (+) nets against outflows (−)
+    if (isUnderSavingsGoals(categories, activityCategory)) {
+      const fundingLines = []
+      for (const id of ids) {
+        const leaf = categories.find((c) => c.id === id)
+        if (!leaf || categories.some((c) => c.parentId === id)) continue
+        const budgeted = getBudgetedFor(id, currentMonth)
+        if (budgeted <= 0) continue
+        fundingLines.push({
+          id: `budgeted:${id}`,
+          transactionId: null,
+          date: `${currentMonth}-01`,
+          payee: 'Budgeted',
+          account: '',
+          amount: budgeted,
+          categoryId: id,
+          categoryName: leaf.name,
+          isSplit: false,
+          isBudgeted: true,
+        })
+      }
+      const outflowAsNeg = outflowLines.map((line) => ({
+        ...line,
+        amount: -Math.abs(Number(line.amount) || 0),
+      }))
+      return [...fundingLines, ...outflowAsNeg]
+    }
+
+    return outflowLines
+  }, [
+    activityCategory,
+    categories,
+    transactions,
+    splits,
+    currentMonth,
+    getBudgetedFor,
+  ])
 
   const handleSaveBudget = async (categoryId) => {
     const amount = parseFloat(editValue) || 0
