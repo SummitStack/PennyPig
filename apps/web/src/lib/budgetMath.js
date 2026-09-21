@@ -67,6 +67,74 @@ export function leafActivity({
   return total
 }
 
+/**
+ * Cleared expense lines that make up Activity for one or more category ids
+ * in a month (includes split contributions).
+ */
+export function listActivityLines({
+  categoryIds,
+  month,
+  transactions,
+  splitsByTxn = {},
+  categories = [],
+}) {
+  const idSet = categoryIds instanceof Set ? categoryIds : new Set(categoryIds || [])
+  const byId = categoryById(categories)
+  const lines = []
+
+  for (const txn of transactions) {
+    if (txn.excludeFromBudget) continue
+    if (txn.cleared === false) continue
+    if (txn.transferAccountId && !txn.categoryId && !txn.isSplit) continue
+    const key = monthKeyFromDate(txn.date)
+    if (key !== month) continue
+
+    if (txn.isSplit && splitsByTxn[txn.id]) {
+      for (const split of splitsByTxn[txn.id]) {
+        if (!idSet.has(split.categoryId)) continue
+        const amt = Math.max(0, Number(split.amount) || 0)
+        if (amt <= 0) continue
+        const cat = byId[split.categoryId]
+        lines.push({
+          id: `${txn.id}:${split.id || split.categoryId}`,
+          transactionId: txn.id,
+          date: txn.date,
+          payee: txn.payee || txn.merchant || 'Unknown',
+          account: txn.account || '',
+          amount: amt,
+          categoryId: split.categoryId,
+          categoryName: cat?.name || 'Split',
+          isSplit: true,
+        })
+      }
+      continue
+    }
+
+    if (!idSet.has(txn.categoryId)) continue
+    const amt = Number(txn.amount) || 0
+    if (amt <= 0) continue
+    const cat = byId[txn.categoryId]
+    lines.push({
+      id: txn.id,
+      transactionId: txn.id,
+      date: txn.date,
+      payee: txn.payee || txn.merchant || 'Unknown',
+      account: txn.account || '',
+      amount: amt,
+      categoryId: txn.categoryId,
+      categoryName: cat?.name || txn.category || 'Uncategorized',
+      isSplit: false,
+    })
+  }
+
+  lines.sort((a, b) => {
+    const byDate = new Date(b.date) - new Date(a.date)
+    if (byDate !== 0) return byDate
+    return String(a.payee).localeCompare(String(b.payee))
+  })
+  return lines
+}
+
 /** Cleared income (inflows) attributed to an income category in a month. */
 export function incomeActivityForCategory({
   categoryId,
