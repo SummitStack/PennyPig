@@ -291,6 +291,20 @@ export function isBudgetParent(cat) {
   return Boolean(cat.isSystem) || BUDGET_PARENT_NAMES.includes(cat.name)
 }
 
+/** True when category is Savings Goals or hangs under it. */
+export function isUnderSavingsGoals(categories, cat) {
+  if (!cat) return false
+  if (cat.name === 'Savings Goals' && isBudgetParent(cat)) return true
+  let cur = cat
+  let guard = 0
+  while (cur?.parentId && guard < 8) {
+    cur = categories.find((c) => c.id === cur.parentId)
+    if (cur?.name === 'Savings Goals' && isBudgetParent(cur)) return true
+    guard += 1
+  }
+  return false
+}
+
 /** Role in the budget hierarchy: parent → group → category. */
 export function getCategoryRole(categories, cat) {
   if (isBudgetParent(cat)) return 'parent'

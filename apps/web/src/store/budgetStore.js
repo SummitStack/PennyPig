@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { useTransactionStore } from './transactionStore'
-import { getLeafCategories, isParentCategory } from '../lib/categories'
+import { getLeafCategories, isParentCategory, isUnderSavingsGoals } from '../lib/categories'
 import {
   computeAvailability,
   computeReadyToAssign,
@@ -193,25 +193,33 @@ export const useBudgetStore = create((set, get) => ({
 
   getActivityFor: (categoryId, month = get().currentMonth) => {
     const { transactions, categories, splitsByTxn } = get()._context()
+    const cat = categories.find((c) => c.id === categoryId)
     const children = categories.filter((c) => c.parentId === categoryId)
     // Direct spend on this id (including mis-tagged group rows) + children
-    const direct = leafActivity({
+    const outflow = leafActivity({
       categoryId,
       month,
       transactions,
       splitsByTxn,
       categories,
     })
+
+    // Savings goals: Activity = budgeted funding − outflows (net into the goal)
+    if (isUnderSavingsGoals(categories, cat) && children.length === 0) {
+      const budgeted = get().getBudgetedFor(categoryId, month)
+      return budgeted - outflow
+    }
+
     if (children.length > 0) {
       return (
-        direct +
+        (isUnderSavingsGoals(categories, cat) ? 0 : outflow) +
         children.reduce(
           (sum, child) => sum + get().getActivityFor(child.id, month),
           0
         )
       )
     }
-    return direct
+    return outflow
   },
 
   getIncomeActivityFor: (categoryId, month = get().currentMonth) => {
