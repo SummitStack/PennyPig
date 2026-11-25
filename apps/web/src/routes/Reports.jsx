@@ -240,7 +240,7 @@ export default function Reports() {
     <MainLayout>
       <div className="mb-space-md flex flex-col gap-space-sm md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-headline-sm text-2xl font-bold tracking-tight text-on-surface">
+          <h1 className="font-display text-headline-lg text-on-surface">
             Reports
           </h1>
           <p className="text-body-sm text-on-surface-variant">
@@ -304,7 +304,7 @@ export default function Reports() {
       </div>
 
       {tab === 'spending' && (
-        <div className="rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
+        <div className="card p-4 sm:p-5">
           <div className="mb-space-md flex items-center justify-between">
             <div>
               <div className="font-headline-sm font-bold text-on-surface">Spending by category</div>
@@ -319,7 +319,7 @@ export default function Reports() {
           ) : (
             <ul className="flex flex-col gap-space-sm">
               {spending.rows.map((row) => (
-                <li key={row.categoryId} className="flex flex-col gap-1">
+                <li key={row.categoryId || 'uncategorized'} className="flex flex-col gap-1">
                   <div className="flex items-center justify-between gap-space-sm">
                     <span className="text-body-sm text-on-surface">
                       {row.emoji ? `${row.emoji} ` : ''}
@@ -351,7 +351,7 @@ export default function Reports() {
           ].map((card) => (
             <div
               key={card.label}
-              className="rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm"
+              className="card p-4 sm:p-5"
             >
               <div className="mb-space-sm flex items-center justify-between">
                 <span className="text-label-md uppercase tracking-wider text-on-surface-variant">
@@ -373,7 +373,7 @@ export default function Reports() {
       )}
 
       {tab === 'trends' && (
-        <div className="rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
+        <div className="card p-4 sm:p-5">
           <div className="mb-space-md font-headline-sm font-bold text-on-surface">
             Last 6 months
           </div>
@@ -415,7 +415,7 @@ export default function Reports() {
       )}
 
       {tab === 'networth' && (
-        <div className="rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
+        <div className="card p-4 sm:p-5">
           <div className="mb-space-md flex items-end justify-between gap-space-sm">
             <div>
               <div className="text-label-md uppercase tracking-wider text-on-surface-variant">
@@ -485,7 +485,7 @@ export default function Reports() {
               key={card.title}
               type="button"
               onClick={card.onClick}
-              className="flex items-start gap-space-md rounded-xl border border-border-hairline bg-surface-base p-space-md text-left shadow-sm transition-colors hover:border-cool-blue/40 hover:bg-surface-container"
+              className="card flex items-start gap-space-md p-4 text-left transition-colors hover:border-cool-blue/40 hover:bg-surface-container"
             >
               <Icon name={card.icon} className="text-[22px] text-cool-blue" />
               <span>

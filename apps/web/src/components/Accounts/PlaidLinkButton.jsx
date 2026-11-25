@@ -5,6 +5,7 @@ import { useAccountStore } from '../../store/accountStore'
 import { useTransactionStore } from '../../store/transactionStore'
 import { useBudgetStore } from '../../store/budgetStore'
 import { authFetch } from '../../lib/authFetch'
+import Icon from '../ui/Icon'
 
 export default function PlaidLinkButton() {
   const user = useAuthStore((state) => state.user)
@@ -64,17 +65,10 @@ export default function PlaidLinkButton() {
         }
         await Promise.all([loadAccounts(), loadData()])
 
-        alert(
-          `Accounts connected${
-            exchangeData.synced_transactions
-              ? ` (${exchangeData.synced_transactions} transactions synced)`
-              : ''
-          }!`
-        )
+
       } catch (err) {
         console.error('Error:', err)
         setError(err.message)
-        alert(`Error: ${err.message}`)
       } finally {
         setLinking(false)
       }
@@ -90,16 +84,34 @@ export default function PlaidLinkButton() {
     },
   })
 
-  return (
-    <div className="space-y-2">
+  // A raw env error ("PLAID_CLIENT_ID is not set") used to show under a button
+  // stuck on "Preparing…". Show a plain unavailable state instead.
+  if (error && !linkToken) {
+    return (
       <button
+        type="button"
+        disabled
+        title={error}
+        className="btn btn-secondary py-2.5"
+      >
+        <Icon name="link_off" className="text-[18px]" />
+        Bank linking unavailable
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <button
+        type="button"
         onClick={() => open()}
         disabled={!ready || !linkToken || linking}
-        className="rounded-xl bg-primary px-space-lg py-space-md font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="btn btn-primary py-2.5"
       >
-        {linking ? 'Connecting...' : !linkToken ? 'Preparing...' : '+ Connect Account'}
+        <Icon name="add_link" className="text-[18px]" />
+        {linking ? 'Connecting…' : !linkToken ? 'Preparing…' : 'Connect a bank'}
       </button>
-      {error && <p className="text-body-sm text-status-error">{error}</p>}
+      {error && <p className="text-label-md text-status-error">{error}</p>}
     </div>
   )
 }

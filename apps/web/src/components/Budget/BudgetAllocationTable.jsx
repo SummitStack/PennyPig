@@ -29,7 +29,7 @@ import MoveMoneyModal from './MoveMoneyModal'
 import ActivityDetailModal from './ActivityDetailModal'
 import Icon from '../ui/Icon'
 import { listActivityLines } from '../../lib/budgetMath'
-import { formatMonthLabel } from '../../lib/money'
+import { formatMonthLabel, money } from '../../lib/money'
 
 function statusDot(available) {
   if (available < 0) return 'bg-status-error'
@@ -43,9 +43,9 @@ function statusText(available) {
   return 'text-status-success'
 }
 
+// Was whole dollars with no thousands separator ("$10100"); now "$10,100.00".
 function formatSignedDollars(n) {
-  const v = Number(n) || 0
-  return `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(0)}`
+  return money(n)
 }
 
 /**
@@ -105,7 +105,7 @@ function MoneyCell({
   if (!editable) {
     return (
       <span className="text-body-sm font-semibold text-on-surface">
-        ${budgeted.toFixed(0)}
+        {money(budgeted)}
       </span>
     )
   }
@@ -133,7 +133,7 @@ function MoneyCell({
       }}
       className="inline-flex cursor-text items-center rounded border border-transparent px-1.5 py-0.5 text-body-sm font-medium text-on-surface hover:border-border-hairline hover:bg-surface-container"
     >
-      <span>${budgeted.toFixed(0)}</span>
+      <span>{money(budgeted)}</span>
     </button>
   )
 }
@@ -221,18 +221,18 @@ function CategoryRowContent({
 }) {
   const isParent = role === 'parent'
   const isLeaf = role === 'category'
-  const pad = depth === 0 ? '' : depth === 1 ? 'pl-5' : 'pl-10'
+  const pad = depth === 0 ? '' : depth === 1 ? 'pl-2 sm:pl-5' : 'pl-4 sm:pl-10'
 
   const rowBg = isParent
-    ? 'bg-surface-container-high/80 border-t border-border-hairline'
+    ? 'mt-2 bg-surface-container-high/70'
     : isGroup
-      ? 'bg-surface-container/40'
-      : ''
+      ? 'bg-surface-container/50'
+      : 'hover:bg-surface-container/50'
 
   const nameClass = isParent
-    ? 'font-headline-sm font-bold uppercase tracking-wider text-on-surface'
+    ? 'font-display font-bold uppercase tracking-[0.06em] text-on-surface'
     : isGroup
-      ? 'font-bold uppercase tracking-wide text-on-surface'
+      ? 'font-semibold text-on-surface'
       : 'font-medium text-on-surface'
 
   const canEditName = manageMode && !isOverlay && !isParent
@@ -241,13 +241,13 @@ function CategoryRowContent({
 
   return (
     <div
-      className={`grid grid-cols-12 items-center py-1 ${rowBg} ${
+      className={`grid grid-cols-12 items-center rounded-md py-1.5 ${rowBg} ${
         isOverlay
           ? 'rounded-lg border border-border-hairline bg-surface-container-high shadow-xl ring-1 ring-cool-blue/40'
           : ''
       }`}
     >
-      <div className={`col-span-4 flex min-w-0 items-center gap-0.5 ${pad}`}>
+      <div className={`col-span-6 sm:col-span-4 flex min-w-0 items-center gap-0.5 ${pad}`}>
         {canDrag ? (
           <button
             type="button"
@@ -258,9 +258,9 @@ function CategoryRowContent({
           >
             <Icon name="menu" className="text-[16px]" />
           </button>
-        ) : (
+        ) : manageMode ? (
           <span className="w-6" />
-        )}
+        ) : null}
 
         {isGroup ? (
           <button
@@ -312,7 +312,7 @@ function CategoryRowContent({
         {!isGroup && !manageMode && underfunded > 0 && (
           <span
             className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-warning"
-            title={`Underfunded by $${underfunded.toFixed(0)}`}
+            title={`Underfunded by ${money(underfunded)}`}
           />
         )}
 
@@ -329,10 +329,10 @@ function CategoryRowContent({
         )}
       </div>
 
-      <div className="col-span-2 text-center">
+      <div className="col-span-3 sm:col-span-2 text-center">
         {isOverlay ? (
           <span className="text-body-sm font-medium text-on-surface">
-            ${budgeted.toFixed(0)}
+            {money(budgeted)}
           </span>
         ) : (
           <MoneyCell
@@ -347,7 +347,7 @@ function CategoryRowContent({
           />
         )}
       </div>
-      <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
+      <div className="hidden sm:block sm:col-span-2 text-center text-body-sm text-on-surface-variant">
         {!isOverlay && !manageMode && activity !== 0 ? (
           <button
             type="button"
@@ -362,14 +362,14 @@ function CategoryRowContent({
         )}
       </div>
       <div
-        className={`col-span-2 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
+        className={`col-span-3 sm:col-span-2 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
           available
         )}`}
         title="Left in this category this month"
       >
         {carryover > 0 && !isOverlay && (
           <span className="text-label-sm text-on-surface-variant" title="Rolled in from prior month">
-            +{carryover.toFixed(0)}
+            +{money(carryover)}
           </span>
         )}
         {!isGroup && !manageMode && !isOverlay && available < 0 ? (
@@ -391,7 +391,7 @@ function CategoryRowContent({
         />
       </div>
       <div
-        className="col-span-2 text-right text-body-sm tabular-nums text-on-surface-variant"
+        className="hidden sm:block sm:col-span-2 text-right text-body-sm tabular-nums text-on-surface-variant"
         title="Account / savings balance (rollover for bills)"
       >
         {accountBalance == null ? '—' : formatSignedDollars(accountBalance)}
@@ -862,7 +862,7 @@ export default function BudgetAllocationTable() {
       : categoryParents
 
   return (
-    <div className="flex flex-col rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
+    <div className="card flex flex-col p-3 sm:p-4">
       {flash && <p className="mb-2 text-label-md text-sage-accent">{flash}</p>}
 
       {manageMode && (
@@ -920,7 +920,7 @@ export default function BudgetAllocationTable() {
             type="button"
             onClick={handleCopyLastMonth}
             disabled={toolbarBusy}
-            className="rounded-lg border border-border-hairline bg-surface-container px-2 py-1 text-label-md font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+            className="btn btn-secondary btn-sm"
           >
             Copy last month
           </button>
@@ -928,7 +928,7 @@ export default function BudgetAllocationTable() {
             type="button"
             onClick={handleAutoAssign}
             disabled={toolbarBusy}
-            className="rounded-lg border border-border-hairline bg-surface-container px-2 py-1 text-label-md font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+            className="btn btn-secondary btn-sm"
           >
             Auto-Assign underfunded
           </button>
@@ -936,7 +936,7 @@ export default function BudgetAllocationTable() {
             type="button"
             onClick={() => setMoveModal({})}
             disabled={toolbarBusy}
-            className="rounded-lg border border-border-hairline bg-surface-container px-2 py-1 text-label-md font-medium text-on-surface hover:bg-surface-container-high disabled:opacity-50"
+            className="btn btn-secondary btn-sm"
           >
             Move money
           </button>
@@ -997,9 +997,9 @@ export default function BudgetAllocationTable() {
         </div>
       )}
 
-      <div className="grid grid-cols-12 border-b border-border-hairline pb-1.5 text-label-sm font-semibold tracking-wide text-on-surface-variant">
-        <div className="col-span-4 flex items-center gap-1">
-          <span>CATEGORY</span>
+      <div className="grid grid-cols-12 items-center border-b border-border-hairline pb-2 text-label-sm font-semibold uppercase tracking-[0.06em] text-on-surface-variant">
+        <div className="col-span-6 sm:col-span-4 flex items-center gap-1">
+          <span>Category</span>
           <button
             type="button"
             onClick={() => (manageMode ? handleSave() : enterManageMode())}
@@ -1015,46 +1015,46 @@ export default function BudgetAllocationTable() {
             <Icon name="edit" className="text-[14px]" />
           </button>
         </div>
-        <div className="col-span-2 text-center">BUDGETED</div>
-        <div className="col-span-2 text-center">ACTIVITY</div>
-        <div className="col-span-2 text-right" title="Left in category this month">
-          AVAILABLE
+        <div className="col-span-3 sm:col-span-2 text-center">Assigned</div>
+        <div className="hidden sm:block sm:col-span-2 text-center">Activity</div>
+        <div className="col-span-3 sm:col-span-2 text-right" title="Left in category this month">
+          Available
         </div>
-        <div className="col-span-2 text-right" title="Account / savings balance">
-          BALANCE
+        <div className="hidden sm:block sm:col-span-2 text-right" title="Account / savings balance">
+          Balance
         </div>
       </div>
 
       {/* Income: expected vs received so leftovers can be assigned below */}
       <div className="mb-1 flex flex-col border-b border-border-hairline pb-1">
-        <div className="grid grid-cols-12 items-center bg-sage-accent/10 py-1.5">
-          <div className="col-span-4 flex items-center gap-1 pl-6">
+        <div className="grid grid-cols-12 items-center rounded-md bg-primary/10 py-1.5">
+          <div className="col-span-6 flex items-center gap-1 pl-2 sm:col-span-4 sm:pl-6">
             <span className="text-sm" aria-hidden>
               💰
             </span>
             <span className="font-headline-sm font-bold uppercase tracking-wider text-on-surface">
               Income
             </span>
-            <span className="ml-2 text-label-sm font-normal normal-case tracking-normal text-on-surface-variant">
+            <span className="ml-2 hidden text-label-sm font-normal normal-case tracking-normal text-on-surface-variant sm:inline">
               Expected vs received
             </span>
           </div>
-          <div className="col-span-2 text-center text-body-sm font-semibold text-on-surface">
-            ${incomeTotals.expected.toFixed(0)}
+          <div className="col-span-3 sm:col-span-2 text-center text-body-sm font-semibold text-on-surface">
+            {money(incomeTotals.expected)}
           </div>
-          <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
-            ${incomeTotals.received.toFixed(0)}
+          <div className="hidden sm:block sm:col-span-2 text-center text-body-sm text-on-surface-variant">
+            {money(incomeTotals.received)}
           </div>
           <div
-            className={`col-span-2 text-right text-body-sm font-medium ${
+            className={`col-span-3 sm:col-span-2 text-right text-body-sm font-medium ${
               incomeTotals.extra >= 0 ? 'text-status-success' : 'text-status-error'
             }`}
             title="Received − expected"
           >
-            {incomeTotals.extra < 0 ? '-' : '+'}$
-            {Math.abs(incomeTotals.extra).toFixed(0)}
+            {incomeTotals.extra < 0 ? '-' : '+'}
+            {money(Math.abs(incomeTotals.extra))}
           </div>
-          <div className="col-span-2 text-right text-body-sm text-on-surface-variant">—</div>
+          <div className="hidden sm:block sm:col-span-2 text-right text-body-sm text-on-surface-variant">—</div>
         </div>
         {incomeLeaves.length === 0 && (
           <p className="py-2 pl-12 text-body-sm text-on-surface-variant">
@@ -1070,9 +1070,7 @@ export default function BudgetAllocationTable() {
               key={`income-${cat.id}`}
               className="grid grid-cols-12 items-center py-1 pl-0"
             >
-              <div className="col-span-4 flex min-w-0 items-center gap-0.5 pl-10">
-                <span className="w-6" />
-                <span className="w-6" />
+              <div className="col-span-6 flex min-w-0 items-center gap-0.5 pl-4 sm:col-span-4 sm:pl-10">
                 <span className="text-sm leading-none" aria-hidden>
                   {cat.emoji || '💰'}
                 </span>
@@ -1092,7 +1090,7 @@ export default function BudgetAllocationTable() {
                   </span>
                 )}
               </div>
-              <div className="col-span-2 text-center">
+              <div className="col-span-3 sm:col-span-2 text-center">
                 <MoneyCell
                   categoryId={cat.id}
                   budgeted={expected}
@@ -1104,18 +1102,18 @@ export default function BudgetAllocationTable() {
                   onSave={handleSaveBudget}
                 />
               </div>
-              <div className="col-span-2 text-center text-body-sm text-on-surface-variant">
-                ${received.toFixed(0)}
+              <div className="hidden sm:block sm:col-span-2 text-center text-body-sm text-on-surface-variant">
+                {money(received)}
               </div>
               <div
-                className={`col-span-2 text-right text-body-sm font-medium ${
+                className={`col-span-3 sm:col-span-2 text-right text-body-sm font-medium ${
                   extra >= 0 ? 'text-status-success' : 'text-status-error'
                 }`}
                 title="Received − expected (extra to assign via Ready to Assign)"
               >
-                {extra < 0 ? '-' : '+'}${Math.abs(extra).toFixed(0)}
+                {extra < 0 ? '-' : '+'}{money(Math.abs(extra))}
               </div>
-              <div className="col-span-2 text-right text-body-sm text-on-surface-variant">
+              <div className="hidden sm:block sm:col-span-2 text-right text-body-sm text-on-surface-variant">
                 —
               </div>
             </div>
@@ -1158,19 +1156,19 @@ export default function BudgetAllocationTable() {
       </DndContext>
 
       <div className="mt-2 grid grid-cols-12 items-center border-t border-border-hairline pt-2 font-bold text-on-surface">
-        <div className="col-span-4 text-body-md">TOTALS</div>
-        <div className="col-span-2 text-center text-body-md">${totalBudgeted.toFixed(0)}</div>
-        <div className="col-span-2 text-center text-body-md text-on-surface-variant">
-          ${totalActivity.toFixed(0)}
+        <div className="col-span-6 sm:col-span-4 text-body-md">Totals</div>
+        <div className="col-span-3 sm:col-span-2 text-center text-body-md">{money(totalBudgeted)}</div>
+        <div className="hidden sm:block sm:col-span-2 text-center text-body-md text-on-surface-variant">
+          {money(totalActivity)}
         </div>
         <div
-          className={`col-span-2 text-right text-body-md ${
+          className={`col-span-3 sm:col-span-2 text-right text-body-md ${
             totalAvailable < 0 ? 'text-status-error' : 'text-sage-accent'
           }`}
         >
           {formatSignedDollars(totalAvailable)}
         </div>
-        <div className="col-span-2 text-right text-body-md text-on-surface-variant">
+        <div className="hidden sm:block sm:col-span-2 text-right text-body-md text-on-surface-variant">
           {formatSignedDollars(totalAccountBalance)}
         </div>
       </div>

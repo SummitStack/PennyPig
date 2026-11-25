@@ -3,52 +3,55 @@ import { useTransactionStore } from '../../store/transactionStore'
 import { useBudgetStore } from '../../store/budgetStore'
 import { getLeafCategories } from '../../lib/categories'
 import { leafExpenseOptgroups, resolveToLeafCategoryId } from '../../lib/categorySuggest'
-import { absAmount, formatMoney, isInflow } from '../../lib/money'
+import { absAmount, formatMoney, isInflow, money } from '../../lib/money'
 import Icon from '../ui/Icon'
 
 function formatDate(d) {
-  const date = new Date(d)
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  const yyyy = date.getFullYear()
-  return `${mm}/${dd}/${yyyy}`
+  const date = d instanceof Date ? d : new Date(`${String(d).slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  const sameYear = date.getFullYear() === new Date().getFullYear()
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
 }
 
 const SORTABLE_COLUMNS = [
-  { key: 'account', label: 'Account', align: 'left', className: 'w-28 px-2 py-1.5' },
-  { key: 'date', label: 'Date', align: 'left', className: 'w-24 px-2 py-1.5' },
-  { key: 'payee', label: 'Payee', align: 'left', className: 'min-w-[9rem] px-2 py-1.5' },
-  { key: 'category', label: 'Category', align: 'left', className: 'w-36 px-2 py-1.5' },
-  { key: 'memo', label: 'Memo', align: 'left', className: 'min-w-[5rem] px-2 py-1.5' },
+  { key: 'account', label: 'Account', align: 'left', className: 'hidden md:table-cell w-28 px-3 py-2.5' },
+  { key: 'date', label: 'Date', align: 'left', className: 'w-24 px-2 py-2.5' },
+  { key: 'payee', label: 'Payee', align: 'left', className: 'min-w-[8rem] px-2 py-2.5' },
+  { key: 'category', label: 'Category', align: 'left', className: 'w-40 px-2 py-2.5' },
+  { key: 'memo', label: 'Memo', align: 'left', className: 'hidden md:table-cell min-w-[5rem] px-2 py-2.5' },
   {
     key: 'outflow',
     label: 'Outflow',
     align: 'right',
-    className: 'w-24 border-l border-border-hairline/80 px-2 py-1.5 text-right',
+    className: 'w-24 px-2 py-2.5 text-right',
   },
   {
     key: 'inflow',
     label: 'Inflow',
     align: 'right',
-    className: 'w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right',
+    className: 'w-24 px-2 py-2.5 text-right',
   },
   {
     key: 'available',
     label: 'Available',
     align: 'right',
-    className: 'w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right',
+    className: 'hidden lg:table-cell w-24 px-2 py-2.5 text-right',
   },
   {
     key: 'balance',
     label: 'Balance',
     align: 'right',
-    className: 'w-24 border-l border-border-hairline/50 px-2 py-1.5 text-right',
+    className: 'hidden lg:table-cell w-28 px-2 py-2.5 text-right',
   },
   {
     key: 'cleared',
-    label: 'Action',
+    label: '',
     align: 'center',
-    className: 'w-24 border-l border-border-hairline/80 px-2 py-1.5 text-center',
+    className: 'w-24 px-2 py-2.5 text-center',
   },
 ]
 
@@ -63,7 +66,7 @@ function categorySortLabel(txn) {
   return String(txn.category || 'Uncategorized').toLowerCase()
 }
 
-function sortValue(txn, key, { getAvailableFor, accountsById } = {}) {
+function sortValue(txn, key, { getAvailableFor, runningBalances } = {}) {
   switch (key) {
     case 'account':
       return String(txn.account || '').toLowerCase()
@@ -84,7 +87,7 @@ function sortValue(txn, key, { getAvailableFor, accountsById } = {}) {
       return getAvailableFor?.(txn.categoryId) ?? null
     }
     case 'balance': {
-      const bal = accountsById?.[txn.accountId]?.balance
+      const bal = runningBalances?.[txn.id]
       return bal == null ? null : Number(bal)
     }
     case 'cleared':
@@ -142,7 +145,7 @@ function CategorySelect({ value, categories, onChange, disabled = false }) {
 
   return (
     <select
-      className="w-full max-w-[10rem] cursor-pointer truncate rounded border border-transparent bg-transparent py-0.5 text-body-sm text-on-surface hover:border-border-hairline focus:border-cool-blue focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+      className="w-full max-w-[11rem] cursor-pointer truncate rounded-md border border-transparent bg-transparent px-1 py-1 text-body-sm text-on-surface hover:border-border-hairline focus:border-cool-blue focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
       value={resolvedValue}
       onChange={(e) => onChange(e.target.value || null)}
       onClick={(e) => e.stopPropagation()}
@@ -495,12 +498,12 @@ function TransactionRow({
   return (
     <>
       <tr
-        className={`border-b border-border-hairline/70 transition-colors hover:bg-surface-container/60 ${
+        className={`border-b border-border-hairline last:border-0 transition-colors hover:bg-surface-container/60 ${
           selected ? 'bg-primary/10' : ''
         } ${!txn.cleared && !isTransfer ? 'bg-surface-container-low/40' : ''}`}
         onClick={() => onToggleSelected(txn.id)}
       >
-        <td className="px-2 py-1">
+        <td className="px-3 py-2">
           <input
             type="checkbox"
             checked={selected}
@@ -511,15 +514,15 @@ function TransactionRow({
           />
         </td>
         <td
-          className="max-w-[7rem] truncate px-2 py-1 text-body-sm font-medium text-on-surface"
+          className="hidden max-w-[7rem] truncate px-3 py-2 text-body-sm text-on-surface-variant md:table-cell"
           title={txn.account}
         >
           {txn.account || '…'}
         </td>
-        <td className="whitespace-nowrap px-2 py-1 text-on-surface">
+        <td className="whitespace-nowrap px-2 py-2 text-on-surface-variant">
           {formatDate(txn.date)}
         </td>
-        <td className="px-1 py-1">
+        <td className="max-w-[14rem] px-1 py-2">
           <EditablePayee
             txn={txn}
             displayPayee={displayPayee}
@@ -527,7 +530,7 @@ function TransactionRow({
             readOnly={isTransfer}
           />
         </td>
-        <td className="px-1 py-1">
+        <td className="px-1 py-2">
           {isTransfer ? (
             <span className="px-1 text-body-sm text-on-surface-variant">Transfer</span>
           ) : txn.isSplit ? (
@@ -543,9 +546,6 @@ function TransactionRow({
             </div>
           ) : (
             <div className="flex min-w-0 items-center gap-1">
-              <span className="shrink-0 text-sm leading-none" aria-hidden>
-                {txn.categoryEmoji || '💸'}
-              </span>
               <CategorySelect
                 value={txn.categoryId}
                 categories={categories}
@@ -554,32 +554,30 @@ function TransactionRow({
             </div>
           )}
         </td>
-        <td className="px-1 py-1">
+        <td className="hidden px-1 py-2 md:table-cell">
           <EditableMemo txn={txn} onSave={onUpdateMemo} />
         </td>
-        <td className="border-l border-border-hairline/80 bg-surface-container-lowest/30 px-2 py-1 text-right tabular-nums text-on-surface">
-          {outflow != null ? formatMoney(outflow) : ''}
+        <td className="whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums text-on-surface">
+          {outflow != null ? `-${formatMoney(outflow)}` : ''}
         </td>
-        <td className="border-l border-border-hairline/50 bg-sage-accent/5 px-2 py-1 text-right tabular-nums text-sage-accent">
+        <td className="whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums text-primary">
           {inflowAmt != null ? `+${formatMoney(inflowAmt)}` : ''}
         </td>
         <td
-          className="border-l border-border-hairline/50 px-2 py-1 text-right tabular-nums text-on-surface"
+          className={`hidden whitespace-nowrap px-2 py-2 text-right tabular-nums lg:table-cell ${
+            categoryAvailable < 0 ? 'text-status-error' : 'text-on-surface-variant'
+          }`}
           title="Left in category this month"
         >
-          {categoryAvailable == null
-            ? ''
-            : `${categoryAvailable < 0 ? '-' : ''}${formatMoney(Math.abs(categoryAvailable))}`}
+          {categoryAvailable == null ? '' : money(categoryAvailable)}
         </td>
         <td
-          className="border-l border-border-hairline/50 px-2 py-1 text-right tabular-nums text-on-surface-variant"
-          title="Account balance"
+          className="hidden whitespace-nowrap px-2 py-2 text-right tabular-nums text-on-surface-variant lg:table-cell"
+          title="Account balance after this transaction"
         >
-          {accountBalance == null
-            ? ''
-            : `${accountBalance < 0 ? '-' : ''}${formatMoney(Math.abs(accountBalance))}`}
+          {accountBalance == null ? '' : money(accountBalance)}
         </td>
-        <td className="border-l border-border-hairline/80 px-2 py-1">
+        <td className="px-2 py-2">
           <div className="flex items-center justify-center gap-0.5">
             {!isTransfer && (
               <button
@@ -679,10 +677,34 @@ export default function TransactionList() {
     [accounts]
   )
 
+  // Balance after each transaction, walking back from the account's current
+  // balance. Before, every row repeated the current balance.
+  const runningBalances = useMemo(() => {
+    const byAccount = {}
+    for (const t of transactions) {
+      if (!t.accountId) continue
+      ;(byAccount[t.accountId] ||= []).push(t)
+    }
+    const out = {}
+    for (const [accountId, rows] of Object.entries(byAccount)) {
+      const acct = accountsById[accountId]
+      if (!acct) continue
+      rows.sort(
+        (a, b) => new Date(b.date) - new Date(a.date) || String(b.id).localeCompare(String(a.id))
+      )
+      let bal = Number(acct.balance) || 0
+      for (const t of rows) {
+        out[t.id] = bal
+        bal += Number(t.amount) || 0
+      }
+    }
+    return out
+  }, [transactions, accountsById])
+
   const filtered = useMemo(() => {
     const rows = useTransactionStore.getState().getFilteredTransactions()
     if (!sortKey) return rows
-    const ctx = { getAvailableFor, accountsById }
+    const ctx = { getAvailableFor, runningBalances }
     return [...rows].sort((a, b) => {
       const primary = compareSortValues(
         sortValue(a, sortKey, ctx),
@@ -700,7 +722,7 @@ export default function TransactionList() {
     sortKey,
     sortDir,
     getAvailableFor,
-    accountsById,
+    runningBalances,
     budgets,
     currentMonth,
   ])
@@ -744,10 +766,10 @@ export default function TransactionList() {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[68rem] border-collapse text-body-sm">
+      <table className="w-full min-w-[34rem] border-collapse text-body-sm md:min-w-[48rem] lg:min-w-[60rem]">
         <thead>
-          <tr className="border-b border-border-hairline text-left text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
-            <th className="w-8 px-2 py-1.5">
+          <tr className="border-b border-border-hairline bg-surface-container-low text-left text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+            <th className="w-8 px-3 py-2.5">
               <input
                 type="checkbox"
                 checked={allSelected}
@@ -772,9 +794,9 @@ export default function TransactionList() {
             <tr>
               <td
                 colSpan={11}
-                className="px-4 py-8 text-center text-body-sm text-on-surface-variant"
+                className="px-4 py-12 text-center text-body-sm text-on-surface-variant"
               >
-                No transactions yet. Use Bank Import to sync, or Add Transaction.
+                No transactions here yet. Add one, or import from your bank.
               </td>
             </tr>
           )}
@@ -783,10 +805,7 @@ export default function TransactionList() {
               txn.transferAccountId || txn.isSplit || !txn.categoryId
                 ? null
                 : getAvailableFor(txn.categoryId)
-            const accountBalance =
-              txn.accountId != null && accountsById[txn.accountId]
-                ? Number(accountsById[txn.accountId].balance) || 0
-                : null
+            const accountBalance = runningBalances[txn.id] ?? null
             return (
               <TransactionRow
                 key={txn.id}

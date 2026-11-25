@@ -77,10 +77,14 @@ export const useAuthStore = create((set) => ({
     try {
       const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) throw error
-      if (data.user) {
-        await ensureProfile()
-        await hydrateAppData()
+      // With email confirmation on, Supabase returns a user but no session.
+      // Profile defaults need an authenticated session, so wait for sign-in.
+      if (!data.session) {
+        set({ user: null, loading: false })
+        return { success: true, needsConfirmation: true }
       }
+      await ensureProfile()
+      await hydrateAppData()
       set({ user: data.user, loading: false })
       return { success: true }
     } catch (err) {

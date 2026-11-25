@@ -6,81 +6,82 @@ import AccountCard from '../components/Accounts/AccountCard'
 import ManualAccountForm from '../components/Accounts/ManualAccountForm'
 import CsvImportSection from '../components/Accounts/CsvImportSection'
 import Icon from '../components/ui/Icon'
+import { money } from '../lib/money'
+import { accountNetContribution } from '../lib/reportMath'
 
 export default function AccountsPage() {
   const linkedAccounts = useAccountStore((state) => state.linkedAccounts)
   const [showManualForm, setShowManualForm] = useState(false)
 
-  const totalBalance = linkedAccounts.reduce((sum, acc) => {
-    const balance = Number(acc.balance) || 0
-    return acc.type === 'credit' ? sum - Math.abs(balance) : sum + balance
-  }, 0)
+  const open = linkedAccounts.filter((a) => !a.closed)
+  const assets = open
+    .map(accountNetContribution)
+    .filter((n) => n > 0)
+    .reduce((s, n) => s + n, 0)
+  const debts = open
+    .map(accountNetContribution)
+    .filter((n) => n < 0)
+    .reduce((s, n) => s + n, 0)
+  const net = assets + debts
 
   return (
     <MainLayout>
-      <div className="flex flex-col gap-space-xl">
-        <div className="flex flex-col justify-between gap-space-lg sm:flex-row sm:items-start">
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-headline-lg font-bold text-on-surface">Accounts</h1>
-            <p className="mt-space-sm text-body-md text-on-surface-variant">
-              Connected and manual accounts
-            </p>
+            <p className="eyebrow">Money</p>
+            <h1 className="mt-1 font-display text-headline-lg text-on-surface">Accounts</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-space-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setShowManualForm(true)} className="btn btn-secondary py-2.5">
+              <Icon name="add" className="text-[18px]" />
+              Add manually
+            </button>
             <PlaidLinkButton />
-            <button
-              type="button"
-              onClick={() => setShowManualForm(true)}
-              className="rounded-xl border border-border-hairline bg-surface-base px-space-lg py-space-md font-medium text-on-surface transition-colors hover:bg-surface-container-high"
-            >
-              Add manual account
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            ['Net worth', net, net < 0 ? 'text-status-error' : 'text-on-surface'],
+            ['Assets', assets, 'text-on-surface'],
+            ['Debts', debts, debts < 0 ? 'text-status-error' : 'text-on-surface'],
+          ].map(([label, value, tone]) => (
+            <div key={label} className="card p-4 sm:p-5">
+              <p className="text-label-md text-on-surface-variant">{label}</p>
+              <p className={`num mt-1 font-display text-headline-sm sm:text-headline-lg ${tone}`}>
+                {money(value)}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {linkedAccounts.length === 0 ? (
+          <div className="card flex flex-col items-center px-6 py-12 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cool-blue/10 text-cool-blue">
+              <Icon name="account_balance" className="text-[24px]" />
+            </span>
+            <p className="mt-3 font-display text-headline-sm text-on-surface">No accounts yet</p>
+            <p className="mt-1 max-w-sm text-body-sm text-on-surface-variant">
+              Connect a bank, or add an account by hand with today's balance. That balance becomes money
+              you can budget.
+            </p>
+            <button type="button" onClick={() => setShowManualForm(true)} className="btn btn-primary mt-4">
+              Add an account
             </button>
           </div>
-        </div>
-
-        <div className="rounded-xl border border-border-hairline bg-surface-base p-space-lg shadow-sm">
-          <p className="text-label-md uppercase tracking-wide text-on-surface-variant">
-            Net across accounts
-          </p>
-          <p
-            className={`mt-space-sm text-headline-lg font-bold ${
-              totalBalance >= 0 ? 'text-status-success' : 'text-status-error'
-            }`}
-          >
-            ${totalBalance.toFixed(2)}
-          </p>
-          <p className="mt-space-sm text-body-sm text-on-surface-variant">
-            Across {linkedAccounts.length} account{linkedAccounts.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-
-        <div>
-          <h2 className="mb-space-md text-headline-sm font-bold text-on-surface">
-            Accounts
-          </h2>
-          <div className="grid grid-cols-1 gap-space-lg md:grid-cols-2">
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {linkedAccounts.map((account) => (
               <AccountCard key={account.id} account={account} />
             ))}
           </div>
-
-          {linkedAccounts.length === 0 && (
-            <div className="rounded-xl border border-border-hairline bg-surface-base p-space-xl text-center">
-              <Icon name="account_balance" className="mb-space-md text-[32px] text-on-surface-variant" />
-              <p className="text-body-md text-on-surface-variant">No accounts yet</p>
-              <p className="mt-space-sm text-body-sm text-on-surface-variant">
-                Connect a bank or add a manual account to get started
-              </p>
-            </div>
-          )}
-        </div>
+        )}
 
         <CsvImportSection />
       </div>
 
-      {showManualForm && (
-        <ManualAccountForm onClose={() => setShowManualForm(false)} />
-      )}
+      {showManualForm && <ManualAccountForm onClose={() => setShowManualForm(false)} />}
     </MainLayout>
   )
 }

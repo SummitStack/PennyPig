@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { useTransactionStore } from './transactionStore'
@@ -544,3 +545,21 @@ export const useBudgetStore = create((set, get) => ({
     return targetNeededForMonth(target, get().currentMonth)
   },
 }))
+
+/**
+ * Ready to Assign that re-renders when its inputs change. Selecting the
+ * getReadyToAssign function alone never re-rendered, so the number went stale
+ * after assigning money until a page reload.
+ */
+export function useReadyToAssign() {
+  const budgets = useBudgetStore((s) => s.budgets)
+  const currentMonth = useBudgetStore((s) => s.currentMonth)
+  const transactions = useTransactionStore((s) => s.transactions)
+  const categories = useTransactionStore((s) => s.categories)
+  const splits = useTransactionStore((s) => s.splits)
+  return useMemo(
+    () => useBudgetStore.getState().getReadyToAssign(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [budgets, currentMonth, transactions, categories, splits]
+  )
+}
