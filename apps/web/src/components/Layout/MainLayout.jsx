@@ -5,6 +5,7 @@ import { useAccountStore } from '../../store/accountStore'
 import { useTheme } from '../../lib/theme'
 import Icon from '../ui/Icon'
 import Logo from '../ui/Logo'
+import { PageSkeleton } from '../ui/Skeleton'
 
 const NAV = [
   { to: '/', label: 'Dashboard', short: 'Home', icon: 'space_dashboard', end: true },
@@ -177,6 +178,9 @@ export default function MainLayout({ children }) {
   const sync = syncStatus(accounts)
   const needsAttention = Boolean(sync?.stale) || (bankIssues || []).some((b) => b.needsReconnect)
   const settingsActive = location.pathname.startsWith('/settings')
+  // Until the first load finishes, show placeholders rather than pages that
+  // would read as empty ("No transactions here yet", $0 to assign).
+  const dataReady = useAuthStore((state) => state.dataReady)
 
   return (
     <div className="min-h-screen bg-surface text-on-surface">
@@ -256,7 +260,7 @@ export default function MainLayout({ children }) {
 
       <main className="lg:pl-60">
         <div className="mx-auto flex w-full max-w-6xl flex-col px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">
-          {children}
+          {dataReady ? children : <PageSkeleton />}
         </div>
       </main>
 
