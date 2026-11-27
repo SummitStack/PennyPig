@@ -3,6 +3,7 @@ import { plaidRequest } from './plaid'
 import { isParentCategory } from './categories'
 import { resolveToLeafCategoryId, suggestLeafCategoryId } from './categorySuggest'
 import { startingBalanceDate, startingBalanceEntry } from './startingBalance'
+import { mapPlaidAccountType, plaidAccountOnBudget, serviceRoleClient } from './supabaseServer'
 
 type AccountRow = {
   id: string
@@ -32,10 +33,32 @@ function mapCategoryRow(row: {
   }
 }
 
+/**
+ * Reads the item's Plaid access token on the server.
+ *
+ * With SUPABASE_SERVICE_ROLE_KEY set, the token is read with the service role,
+ * so the database can stop handing it to signed-in browsers (see the
+ * 20261127_plaid_token_server_only migration). Without the key it falls back to
+ * the older RPC, which any signed-in user can also call from their browser.
+ */
 export async function getPlaidAccessToken(
   supabase: SupabaseClient,
-  plaidItemId: string
+  plaidItemId: string,
+  userId?: string
 ): Promise<string> {
+  const admin = serviceRoleClient()
+  if (admin && userId) {
+    const { data, error } = await admin
+      .from('plaid_items')
+      .select('access_token')
+      .eq('id', plaidItemId)
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data?.access_token) throw new Error('Plaid access token not found for this item')
+    return data.access_token as string
+  }
+
   const { data, error } = await supabase.rpc('get_plaid_access_token', {
     p_plaid_item_id: plaidItemId,
   })
@@ -71,13 +94,29 @@ export async function syncTransactionsForAccounts(
     access_token: accessToken,
   })
   if (accountsResult.response.ok) {
+    const { data: storedTypes } = await supabase
+      .from('accounts')
+      .select('plaid_account_id, account_type')
+      .eq('user_id', userId)
+      .not('plaid_account_id', 'is', null)
+    const typeByPlaidId = new Map(
+      (storedTypes || []).map((r: any) => [r.plaid_account_id, r.account_type])
+    )
     for (const plaidAccount of accountsResult.data.accounts || []) {
+      // Repair loans saved as 'other' by the old type mapping, so they count
+      // as debts in net worth and stay out of the budget.
+      const mapped = mapPlaidAccountType(plaidAccount.type, plaidAccount.subtype)
+      const repair =
+        typeByPlaidId.get(plaidAccount.account_id) === 'other' && mapped === 'loan'
+          ? { account_type: mapped, on_budget: plaidAccountOnBudget(plaidAccount.type) }
+          : {}
       await supabase
         .from('accounts')
         .update({
           balance: plaidAccount.balances?.current ?? 0,
           last_synced: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          ...repair,
         })
         .eq('user_id', userId)
         .eq('plaid_account_id', plaidAccount.account_id)

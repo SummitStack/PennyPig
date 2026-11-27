@@ -27,14 +27,20 @@ const PLAID_PRIMARY_TO_LEAF: Record<string, string[]> = {
   rent_and_utilities: ['Rent & Housing', 'Utilities', 'Internet'],
   rent: ['Rent & Housing'],
   utilities: ['Utilities', 'Internet'],
-  transfer_in: ['Salary'],
-  transfer_out: ['Household'],
+  transfer_in: [],
+  transfer_out: [],
   loan_payments: ['Plaid Credit Card'],
-  bank_fees: ['Household'],
-  interest: ['Salary'],
+  bank_fees: [],
+  interest: ['Interest', 'Other Income'],
   income: ['Salary'],
   paycheck: ['Salary'],
 }
+
+// Card payments and transfers move money between the user's own accounts.
+// Filing them under a spending category counts them as spending twice, so
+// leave them uncategorized for the user to mark as a transfer.
+const TRANSFER_LIKE =
+  /automatic payment|autopay|payment\s*-\s*thank|credit card .*payment|card payment|online transfer|transfer (to|from)/i
 
 const PAYEE_KEYWORD_LEAVES: Array<{ re: RegExp; names: string[] }> = [
   { re: /starbucks|dunkin|coffee|cafe|espresso/i, names: ['Coffee'] },
@@ -46,7 +52,7 @@ const PAYEE_KEYWORD_LEAVES: Array<{ re: RegExp; names: string[] }> = [
   { re: /united|delta|american airlines|airline|airfare/i, names: ['Vacation', 'Transit'] },
   { re: /climbing|gym|fitness/i, names: ['Games', 'Movies & Events'] },
   { re: /bicycle|bike/i, names: ['Transit', 'Household'] },
-  { re: /interest|intrst/i, names: ['Salary'] },
+  { re: /interest|intrst/i, names: ['Interest', 'Other Income'] },
   { re: /payroll|direct dep|salary|paycheck/i, names: ['Salary'] },
 ]
 
@@ -122,6 +128,7 @@ export function suggestLeafCategoryId({
   }
 
   const hay = `${payee} ${merchant}`
+  if (TRANSFER_LIKE.test(hay)) return null
   for (const rule of PAYEE_KEYWORD_LEAVES) {
     if (rule.re.test(hay)) {
       const id = pickLeafByNames(categories, rule.names)
@@ -155,11 +162,13 @@ export function suggestLeafCategoryId({
     .map((p) => p.charAt(0) + p.slice(1).toLowerCase())
     .join(' ')
   if (pretty) {
-    const id = pickLeafByNames(categories, [pretty, 'Household', 'Clothes', 'Dining'])
+    const id = pickLeafByNames(categories, [pretty])
     if (id) return id
   }
 
-  return pickLeafByNames(categories, ['Household', 'Clothes', 'Dining', 'Transit'])
+  // No confident match: leave it uncategorized so it shows up for review
+  // instead of quietly landing in Household.
+  return null
 }
 
 /** Group expense leaves under "Parent › Group" labels for <select> optgroups. */

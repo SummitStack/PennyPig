@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   getPlaidAccessToken,
+  recordStartingBalances,
   syncTransactionsForAccounts,
 } from '../../../../lib/plaidSync'
 import { requireAuthedClient } from '../../../../lib/supabaseServer'
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const accessToken = await getPlaidAccessToken(supabase, plaidItemId!)
+    const accessToken = await getPlaidAccessToken(supabase, plaidItemId!, user.id)
 
     const { data: accounts, error: accountsError } = await accountsQuery
     if (accountsError) throw new Error(accountsError.message)
@@ -72,9 +73,23 @@ export async function POST(request: NextRequest) {
       accounts || []
     )
 
+    // Accounts linked before starting balances existed get one now, so their
+    // register adds up to the bank's balance. Skips accounts that have one.
+    let startingBalances = 0
+    try {
+      startingBalances = await recordStartingBalances(
+        supabase,
+        user.id,
+        (accounts || []).map((a: { id: string }) => a.id)
+      )
+    } catch (startErr) {
+      console.error('Starting balance warning:', startErr)
+    }
+
     return NextResponse.json({
       success: true,
       synced,
+      startingBalances,
     })
   } catch (err) {
     console.error('Sync error:', err)

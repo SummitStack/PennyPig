@@ -12,7 +12,8 @@ import {
 } from './money'
 import { incomeForMonth, leafActivity } from './budgetMath'
 
-function isLiability(account) {
+/** Credit cards and loans: money owed, whatever sign the balance is stored with. */
+export function isLiability(account) {
   return account?.type === 'credit' || account?.type === 'loan'
 }
 

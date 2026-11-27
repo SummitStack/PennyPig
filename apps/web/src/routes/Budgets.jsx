@@ -8,11 +8,13 @@ import BudgetAllocationTable from '../components/Budget/BudgetAllocationTable'
 import MonthClosePanel from '../components/Budget/MonthClosePanel'
 import Icon from '../components/ui/Icon'
 import { formatMonthLabel, shiftMonth, money } from '../lib/money'
+import { accountNetContribution, isLiability } from '../lib/reportMath'
 import { linkedPlaidAccounts, syncAllLinked } from '../lib/plaidSyncClient'
 
 function accountIcon(type) {
   if (type === 'credit') return 'credit_card'
   if (type === 'savings') return 'savings'
+  if (type === 'loan') return 'real_estate_agent'
   return 'account_balance'
 }
 
@@ -176,7 +178,7 @@ export default function BudgetsPage() {
                   <div className="flex min-w-0 items-center gap-3">
                     <span
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        account.type === 'credit'
+                        isLiability(account)
                           ? 'bg-status-error/10 text-status-error'
                           : 'bg-cool-blue/10 text-cool-blue'
                       }`}
@@ -198,10 +200,10 @@ export default function BudgetsPage() {
                   </div>
                   <div
                     className={`num text-body-sm font-semibold ${
-                      account.balance < 0 ? 'text-status-error' : 'text-on-surface'
+                      accountNetContribution(account) < 0 ? 'text-status-error' : 'text-on-surface'
                     }`}
                   >
-                    {money(account.balance)}
+                    {money(accountNetContribution(account))}
                   </div>
                 </div>
               ))}

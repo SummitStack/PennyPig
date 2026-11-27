@@ -23,6 +23,7 @@ Add these before deploying (values from your Supabase + Plaid dashboards):
 - `PLAID_CLIENT_ID`
 - `PLAID_SECRET`
 - `PLAID_ENV` (`sandbox` for development)
+- `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API keys). Server only: never prefix it with `NEXT_PUBLIC_`. The Plaid routes use it to read bank tokens so browsers never can.
 
 Do **not** commit real secrets to the repo. Keep them in Vercel project settings only.
 

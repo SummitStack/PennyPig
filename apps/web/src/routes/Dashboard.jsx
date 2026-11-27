@@ -9,12 +9,13 @@ import Icon from '../components/ui/Icon'
 import { getLeafCategories, isUnderSavingsGoals } from '../lib/categories'
 import { monthSpending, incomeForMonth } from '../lib/budgetMath'
 import { currentMonthKey, formatMonthLabel, money } from '../lib/money'
-import { currentNetWorth, netWorthByMonth } from '../lib/reportMath'
+import { accountNetContribution, currentNetWorth, isLiability, netWorthByMonth } from '../lib/reportMath'
 import RecurringPanel from '../components/Transactions/RecurringPanel'
 
 function accountIcon(type) {
   if (type === 'credit') return 'credit_card'
   if (type === 'savings') return 'savings'
+  if (type === 'loan') return 'real_estate_agent'
   return 'account_balance'
 }
 
@@ -451,7 +452,7 @@ export default function Dashboard() {
                       <div className="flex min-w-0 items-center gap-3">
                         <span
                           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                            account.type === 'credit'
+                            isLiability(account)
                               ? 'bg-status-error/10 text-status-error'
                               : 'bg-cool-blue/10 text-cool-blue'
                           }`}
@@ -462,10 +463,10 @@ export default function Dashboard() {
                       </div>
                       <span
                         className={`num shrink-0 text-body-md font-semibold ${
-                          account.balance < 0 ? 'text-status-error' : 'text-on-surface'
+                          accountNetContribution(account) < 0 ? 'text-status-error' : 'text-on-surface'
                         }`}
                       >
-                        {money(account.balance)}
+                        {money(accountNetContribution(account))}
                       </span>
                     </li>
                   ))}

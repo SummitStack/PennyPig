@@ -4,6 +4,7 @@ import { useTransactionStore } from '../../store/transactionStore'
 import { useBudgetStore } from '../../store/budgetStore'
 import { authFetch } from '../../lib/authFetch'
 import { money } from '../../lib/money'
+import { isLiability } from '../../lib/reportMath'
 import Icon from '../ui/Icon'
 import ReconcileModal from './ReconcileModal'
 import AccountEditModal from './AccountEditModal'
@@ -14,6 +15,7 @@ function accountIcon(type) {
   if (type === 'credit') return 'credit_card'
   if (type === 'savings') return 'savings'
   if (type === 'investment') return 'trending_up'
+  if (type === 'loan') return 'real_estate_agent'
   return 'account_balance'
 }
 
@@ -54,7 +56,10 @@ export default function AccountCard({ account }) {
       if (!response.ok) throw new Error(data.error || 'Sync failed')
       await Promise.all([loadAccounts(), loadData(), loadBudgets()])
       const n = data.synced ?? 0
-      setNote({ tone: 'ok', text: `Synced ${n} transaction${n === 1 ? '' : 's'}.` })
+      const extra = data.startingBalances
+        ? ' Added a starting balance so the register matches the bank.'
+        : ''
+      setNote({ tone: 'ok', text: `Synced ${n} transaction${n === 1 ? '' : 's'}.${extra}` })
     } catch (error) {
       setNote({ tone: 'error', text: error.message })
     } finally {
@@ -62,7 +67,9 @@ export default function AccountCard({ account }) {
     }
   }
 
-  const isCredit = account.type === 'credit'
+  // Debts read as an amount owed: manual cards store it negative, linked ones positive.
+  const isDebt = isLiability(account)
+  const shown = isDebt ? Math.abs(Number(account.balance) || 0) : Number(account.balance) || 0
   const subtitle = account.closed
     ? 'Closed'
     : account.isManual
@@ -77,7 +84,7 @@ export default function AccountCard({ account }) {
       <div className="flex items-start gap-3">
         <span
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-            isCredit ? 'bg-status-error/10 text-status-error' : 'bg-cool-blue/10 text-cool-blue'
+            isDebt ? 'bg-status-error/10 text-status-error' : 'bg-cool-blue/10 text-cool-blue'
           }`}
         >
           <Icon name={accountIcon(account.type)} className="text-[20px]" />
@@ -97,19 +104,19 @@ export default function AccountCard({ account }) {
         </button>
       </div>
 
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-label-md text-on-surface-variant">{isCredit ? 'Balance owed' : 'Balance'}</p>
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-label-md text-on-surface-variant">{isDebt ? 'Balance owed' : 'Balance'}</p>
           <p
             className={`num font-display text-headline-lg ${
-              account.balance < 0 ? 'text-status-error' : 'text-on-surface'
+              (isDebt ? shown > 0 : shown < 0) ? 'text-status-error' : 'text-on-surface'
             }`}
           >
-            {money(account.balance)}
+            {money(shown)}
           </p>
-          {ago && <p className="text-label-md text-on-surface-variant">Synced {ago}</p>}
+          {ago && <p className="whitespace-nowrap text-label-md text-on-surface-variant">Synced {ago}</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           {!account.isManual && (
             <button type="button" onClick={handleSync} disabled={syncing} className="btn btn-secondary btn-sm">
               <Icon name="sync" className={`text-[16px] ${syncing ? 'animate-spin' : ''}`} />
