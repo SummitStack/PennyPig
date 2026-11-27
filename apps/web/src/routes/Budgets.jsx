@@ -1,14 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { useBudgetStore } from '../store/budgetStore'
+import { useBudgetStore, useReadyToAssign } from '../store/budgetStore'
 import { useAccountStore } from '../store/accountStore'
 import { useTransactionStore } from '../store/transactionStore'
 import MainLayout from '../components/Layout/MainLayout'
 import BudgetAllocationTable from '../components/Budget/BudgetAllocationTable'
 import MonthClosePanel from '../components/Budget/MonthClosePanel'
 import Icon from '../components/ui/Icon'
-import { authFetch } from '../lib/authFetch'
-import { formatMonthLabel, shiftMonth } from '../lib/money'
+import { formatMonthLabel, shiftMonth, money } from '../lib/money'
+import { linkedPlaidAccounts, syncAllLinked } from '../lib/plaidSyncClient'
 
 function accountIcon(type) {
   if (type === 'credit') return 'credit_card'
@@ -22,16 +22,23 @@ export default function BudgetsPage() {
   const setCurrentMonth = useBudgetStore((state) => state.setCurrentMonth)
   const loadBudgets = useBudgetStore((state) => state.loadBudgets)
   const loadBudgetHistory = useBudgetStore((state) => state.loadBudgetHistory)
-  const getReadyToAssign = useBudgetStore((state) => state.getReadyToAssign)
   const accounts = useAccountStore((state) => state.linkedAccounts)
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadData = useTransactionStore((state) => state.loadData)
   const [syncLoading, setSyncLoading] = useState(false)
-  const readyToAssign = getReadyToAssign()
+  const [syncMessage, setSyncMessage] = useState(null)
+  const readyToAssign = useReadyToAssign()
+  const hasLinked = linkedPlaidAccounts(accounts).length > 0
 
   useEffect(() => {
     loadBudgetHistory()
   }, [loadBudgetHistory])
+
+  useEffect(() => {
+    if (!syncMessage) return undefined
+    const t = setTimeout(() => setSyncMessage(null), 5000)
+    return () => clearTimeout(t)
+  }, [syncMessage])
 
   const monthName = formatMonthLabel(currentMonth)
 
@@ -43,164 +50,175 @@ export default function BudgetsPage() {
 
   const handleSync = async () => {
     setSyncLoading(true)
+    setSyncMessage(null)
     try {
-      for (const account of accounts) {
-        const response = await authFetch('/api/plaid/sync', {
-          method: 'POST',
-          body: JSON.stringify({ account_id: account.id }),
-        })
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error || 'Sync failed')
-      }
+      const result = await syncAllLinked(accounts)
       await Promise.all([loadAccounts(), loadData(), loadBudgets(currentMonth)])
-    } catch (err) {
-      console.error(err)
-      alert(err.message || 'Sync failed')
+      setSyncMessage(
+        result.errors.length
+          ? `Some banks didn't sync. ${result.errors.join(' ')}`
+          : `Synced ${result.synced} new transaction${result.synced === 1 ? '' : 's'}.`
+      )
     } finally {
       setSyncLoading(false)
     }
   }
 
+  const negative = readyToAssign < 0
+  const zero = Math.abs(readyToAssign) < 0.005
+
   return (
     <MainLayout>
-      <div className="mb-space-md flex flex-col justify-between gap-space-sm md:flex-row md:items-center">
-        <div className="flex flex-wrap items-center gap-space-sm">
-          <div className="flex items-center rounded-lg border border-border-hairline bg-surface-container-high p-0.5">
+      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="eyebrow">Budget</p>
+          <div className="mt-1 flex items-center gap-1">
             <button
               type="button"
               onClick={() => changeMonth(-1)}
-              className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-base hover:text-on-surface"
+              className="btn btn-ghost h-9 w-9 p-0"
               aria-label="Previous month"
             >
-              <Icon name="chevron_left" className="text-[18px]" />
+              <Icon name="chevron_left" className="text-[22px]" />
             </button>
-            <span className="px-space-sm font-headline-sm font-bold tracking-tight text-on-surface">
+            <h1 className="min-w-[10.5rem] text-center font-display text-headline-lg text-on-surface">
               {monthName}
-            </span>
+            </h1>
             <button
               type="button"
               onClick={() => changeMonth(1)}
-              className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-base hover:text-on-surface"
+              className="btn btn-ghost h-9 w-9 p-0"
               aria-label="Next month"
             >
-              <Icon name="chevron_right" className="text-[18px]" />
+              <Icon name="chevron_right" className="text-[22px]" />
             </button>
           </div>
         </div>
 
         <div
-          className={`flex items-center justify-between gap-space-md rounded-lg border px-space-md py-2 md:justify-end ${
-            readyToAssign < 0
-              ? 'border-status-error/30 bg-status-error/10'
-              : 'border-sage-accent/30 bg-sage-accent/10'
+          className={`flex items-center justify-between gap-6 rounded-2xl px-5 py-3.5 ring-1 ${
+            negative
+              ? 'bg-status-error/10 ring-status-error/25'
+              : zero
+                ? 'bg-surface-base ring-border-hairline'
+                : 'bg-primary/10 ring-primary/25'
           }`}
+          data-testid="ready-to-assign"
         >
           <div>
             <div
-              className={`text-label-sm font-bold tracking-wider ${
-                readyToAssign < 0 ? 'text-status-error' : 'text-sage-accent'
+              className={`text-label-md font-semibold ${
+                negative ? 'text-status-error' : zero ? 'text-on-surface-variant' : 'text-primary'
               }`}
             >
-              READY TO ASSIGN
+              Ready to assign
             </div>
             <div className="text-label-sm text-on-surface-variant">
-              Income + leftover − overspend − assigned
+              {negative
+                ? 'You assigned more than you have'
+                : zero
+                  ? 'Every dollar has a job'
+                  : 'Give these dollars a job'}
             </div>
           </div>
           <div
-            className={`text-headline-md font-bold ${
-              readyToAssign < 0 ? 'text-status-error' : 'text-sage-accent'
+            className={`num font-display text-headline-lg ${
+              negative ? 'text-status-error' : zero ? 'text-on-surface' : 'text-primary'
             }`}
           >
-            {readyToAssign < 0 ? '-' : ''}${Math.abs(readyToAssign).toFixed(2)}
+            {money(readyToAssign)}
           </div>
         </div>
       </div>
 
-      <div
-        id="budget-allocation"
-        className="grid grid-cols-1 items-start gap-space-md lg:grid-cols-12"
-      >
-        <div className="lg:col-span-8">
+      <div id="budget-allocation" className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
+        <div className="min-w-0 xl:col-span-8">
           <BudgetAllocationTable />
         </div>
 
-        <div className="flex flex-col gap-space-sm lg:col-span-4">
-          <div className="flex flex-col gap-space-sm rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
-            <div className="flex items-center justify-between border-b border-border-hairline pb-1.5">
-              <span className="font-headline-sm font-bold text-on-surface">Account Balances</span>
-              <button
-                type="button"
-                onClick={handleSync}
-                disabled={syncLoading || accounts.length === 0}
-                className="flex items-center gap-1 text-label-md font-semibold text-cool-blue hover:underline disabled:opacity-40"
-              >
-                <Icon name="sync" className={`text-[14px] ${syncLoading ? 'animate-spin' : ''}`} />
-                <span>{syncLoading ? 'Syncing…' : 'Sync Now'}</span>
-              </button>
+        <div className="flex flex-col gap-4 xl:col-span-4">
+          <section className="card p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-display text-headline-sm text-on-surface">Accounts</h2>
+              {hasLinked && (
+                <button
+                  type="button"
+                  onClick={handleSync}
+                  disabled={syncLoading}
+                  className="btn btn-ghost btn-sm text-cool-blue"
+                >
+                  <Icon name="sync" className={`text-[16px] ${syncLoading ? 'animate-spin' : ''}`} />
+                  {syncLoading ? 'Syncing…' : 'Sync banks'}
+                </button>
+              )}
             </div>
-
-            <div className="flex flex-col gap-1.5">
+            {syncMessage && (
+              <p className="mb-2 rounded-lg bg-surface-container px-3 py-2 text-label-md text-on-surface-variant">
+                {syncMessage}
+              </p>
+            )}
+            <div className="flex flex-col">
               {accounts.length === 0 && (
-                <p className="text-body-sm text-on-surface-variant">No linked accounts yet</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/accounts')}
+                  className="rounded-lg border border-dashed border-outline-variant px-3 py-4 text-body-sm text-on-surface-variant hover:bg-surface-container"
+                >
+                  Add your first account
+                </button>
               )}
               {accounts.map((account) => (
-                <div key={account.id} className="flex items-center justify-between py-0.5">
-                  <div className="flex items-center gap-space-sm">
-                    <Icon
-                      name={accountIcon(account.type)}
-                      className={`text-[18px] ${
-                        account.type === 'credit' ? 'text-error' : 'text-secondary'
+                <div
+                  key={account.id}
+                  className="flex items-center justify-between gap-3 border-b border-border-hairline py-2.5 last:border-0"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                        account.type === 'credit'
+                          ? 'bg-status-error/10 text-status-error'
+                          : 'bg-cool-blue/10 text-cool-blue'
                       }`}
-                    />
-                    <div>
-                      <div className="text-body-sm font-medium text-on-surface">{account.name}</div>
-                      <div className="text-label-sm text-on-surface-variant">
-                        {account.institution} {account.accountNumber}
+                    >
+                      <Icon name={accountIcon(account.type)} className="text-[18px]" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate text-body-sm font-medium text-on-surface">
+                        {account.name}
+                      </div>
+                      <div className="truncate text-label-sm text-on-surface-variant">
+                        {account.isManual
+                          ? 'Manual'
+                          : [account.institution, account.accountNumber]
+                              .filter(Boolean)
+                              .join(' ')}
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div
-                      className={`text-body-sm font-semibold ${
-                        account.balance < 0 ? 'text-error' : 'text-on-surface'
-                      }`}
-                    >
-                      ${Number(account.balance).toLocaleString(undefined, {
-                        maximumFractionDigits: 0,
-                      })}
-                    </div>
-                    <Icon
-                      name={account.balance < 0 ? 'error' : 'check'}
-                      className={`text-[14px] ${
-                        account.balance < 0 ? 'text-status-error' : 'text-status-success'
-                      }`}
-                    />
+                  <div
+                    className={`num text-body-sm font-semibold ${
+                      account.balance < 0 ? 'text-status-error' : 'text-on-surface'
+                    }`}
+                  >
+                    {money(account.balance)}
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
           <MonthClosePanel />
 
-          <button
-            type="button"
-            onClick={() => navigate('/transactions')}
-            className="flex w-full items-center justify-center gap-space-sm rounded-xl bg-primary px-space-md py-2.5 font-headline-sm font-semibold text-on-primary shadow-sm transition-opacity hover:opacity-90"
-          >
-            <Icon name="add_circle" className="text-[18px]" />
-            <span>Record Transaction</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate('/reports')}
-            className="flex w-full items-center justify-center gap-space-sm rounded-xl border border-border-hairline bg-surface-container px-space-md py-2.5 font-headline-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-high"
-          >
-            <Icon name="bar_chart" className="text-[18px]" />
-            <span>View Reports</span>
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => navigate('/transactions')} className="btn btn-primary py-2.5">
+              <Icon name="add" className="text-[18px]" />
+              Transaction
+            </button>
+            <button type="button" onClick={() => navigate('/reports')} className="btn btn-secondary py-2.5">
+              <Icon name="insights" className="text-[18px]" />
+              Reports
+            </button>
+          </div>
         </div>
       </div>
     </MainLayout>

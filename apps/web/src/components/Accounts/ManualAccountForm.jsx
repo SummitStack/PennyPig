@@ -1,3 +1,4 @@
+import { ModalBackdrop, modalPanel } from '../ui/Modal'
 import { useState } from 'react'
 import { useAccountStore } from '../../store/accountStore'
 import Icon from '../ui/Icon'
@@ -15,10 +16,13 @@ export default function ManualAccountForm({ onClose, onCreated }) {
   const createManualAccount = useAccountStore((state) => state.createManualAccount)
   const [name, setName] = useState('')
   const [accountType, setAccountType] = useState('checking')
-  const [balance, setBalance] = useState('0')
+  const [balance, setBalance] = useState('')
   const [onBudget, setOnBudget] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+
+  const isDebt = accountType === 'credit' || accountType === 'loan'
+  const amount = parseFloat(balance) || 0
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -31,7 +35,7 @@ export default function ManualAccountForm({ onClose, onCreated }) {
     const result = await createManualAccount({
       name: name.trim(),
       accountType,
-      balance: parseFloat(balance) || 0,
+      balance: amount,
       onBudget,
     })
     setSaving(false)
@@ -44,94 +48,92 @@ export default function ManualAccountForm({ onClose, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 p-4">
-      <div
-        className="w-full max-w-md rounded-xl border border-border-hairline bg-surface-base p-space-lg shadow-lg"
-        role="dialog"
-        aria-labelledby="manual-account-title"
-      >
-        <div className="mb-space-md flex items-center justify-between">
-          <h3 id="manual-account-title" className="text-headline-sm font-bold text-on-surface">
-            Add manual account
+    <ModalBackdrop onClose={onClose}>
+      <div className={`w-full max-w-md ${modalPanel} p-5 sm:p-6`} role="dialog" aria-labelledby="manual-account-title">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 id="manual-account-title" className="font-display text-headline-sm text-on-surface">
+            Add an account
           </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded p-1 text-on-surface-variant hover:bg-surface-container"
-            aria-label="Close"
-          >
+          <button type="button" onClick={onClose} className="btn btn-ghost h-8 w-8 p-0" aria-label="Close">
             <Icon name="close" className="text-[18px]" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-space-md">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-label-sm text-on-surface-variant">Name</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My checking"
-              className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-cool-blue"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-label-sm text-on-surface-variant">Type</label>
-            <select
-              value={accountType}
-              onChange={(e) => setAccountType(e.target.value)}
-              className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface"
-            >
-              {ACCOUNT_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-label-sm text-on-surface-variant">
-              Starting balance
+            <label htmlFor="ma-name" className="field-label">
+              Name
             </label>
             <input
-              type="number"
-              step="0.01"
-              value={balance}
-              onChange={(e) => setBalance(e.target.value)}
-              className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-cool-blue"
+              id="ma-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Everyday checking"
+              className="field"
+              required
+              autoFocus
             />
           </div>
 
-          <label className="flex items-center gap-space-sm text-body-sm text-on-surface">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="ma-type" className="field-label">
+                Type
+              </label>
+              <select id="ma-type" value={accountType} onChange={(e) => setAccountType(e.target.value)} className="field">
+                {ACCOUNT_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="ma-balance" className="field-label">
+                {isDebt ? 'Balance (owed is negative)' : "Today's balance"}
+              </label>
+              <input
+                id="ma-balance"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+                placeholder="0.00"
+                className="field num"
+              />
+            </div>
+          </div>
+
+          <label className="flex items-start gap-2.5 rounded-lg border border-border-hairline p-3 text-body-sm text-on-surface">
             <input
               type="checkbox"
               checked={onBudget}
               onChange={(e) => setOnBudget(e.target.checked)}
-              className="rounded border-border-hairline"
+              className="mt-0.5"
             />
-            On budget
+            <span>
+              <span className="font-medium">Use in my budget</span>
+              <span className="block text-label-md text-on-surface-variant">
+                {onBudget && !isDebt && amount > 0
+                  ? `${amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} will be added to Ready to Assign as a starting balance.`
+                  : 'Turn off for accounts you only want to track, like a retirement account.'}
+              </span>
+            </span>
           </label>
 
           {error && <p className="text-body-sm text-status-error">{error}</p>}
 
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 rounded-lg bg-primary px-space-md py-space-sm font-medium text-on-primary disabled:opacity-50"
-            >
-              {saving ? 'Creating…' : 'Create account'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border-hairline px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container"
-            >
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancel
+            </button>
+            <button type="submit" disabled={saving} className="btn btn-primary">
+              {saving ? 'Adding…' : 'Add account'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   )
 }

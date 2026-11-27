@@ -113,6 +113,19 @@ export function spendingByCategory({
     })
   }
 
+  // Spending nobody has categorized yet still counts.
+  let uncategorized = 0
+  for (const txn of transactions) {
+    if (txn.excludeFromBudget || txn.cleared === false) continue
+    if (txn.transferAccountId || txn.categoryId || txn.isSplit) continue
+    if (!inDateRange(txn, from, to)) continue
+    const amt = Number(txn.amount) || 0
+    if (amt > 0) uncategorized += amt
+  }
+  if (uncategorized > 0) {
+    rows.push({ categoryId: null, name: 'Uncategorized', emoji: '❔', amount: uncategorized })
+  }
+
   rows.sort((a, b) => b.amount - a.amount)
   const total = rows.reduce((sum, r) => sum + r.amount, 0)
   return { rows, total }

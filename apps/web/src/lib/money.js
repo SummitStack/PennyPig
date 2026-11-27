@@ -39,6 +39,25 @@ export function formatMoney(amount, { signed = false } = {}) {
   return `$${formatted}`
 }
 
+/** Plain dollars for display: money(-1234.5) → "-$1,234.50". Sign is the number's own sign. */
+export function money(amount, { cents = true } = {}) {
+  const n = Number(amount) || 0
+  const digits = cents ? 2 : 0
+  const abs = Math.abs(n).toLocaleString('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+  const rounded = cents ? Math.round(n * 100) : Math.round(n)
+  return (rounded < 0 ? '-' : '') + '$' + abs
+}
+
+/** Today's date as YYYY-MM-DD in the user's own time zone (not UTC). */
+export function todayLocal(date = new Date()) {
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${m}-${d}`
+}
+
 export function monthKeyFromDate(date) {
   const d =
     date instanceof Date

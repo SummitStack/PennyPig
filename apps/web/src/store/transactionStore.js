@@ -9,7 +9,7 @@ import {
   isParentCategory,
 } from '../lib/categories'
 import { normalizePayeeKey } from '../lib/payee'
-import { signedAmount, absAmount } from '../lib/money'
+import { signedAmount, absAmount, todayLocal } from '../lib/money'
 import {
   resolveToLeafCategoryId,
   suggestLeafCategoryId,
@@ -1060,7 +1060,7 @@ export const useTransactionStore = create((set, get) => ({
       .insert({
         user_id: user.id,
         account_id: accountId,
-        date: date || new Date().toISOString().slice(0, 10),
+        date: date || todayLocal(),
         amount: value,
         merchant: cleanPayee,
         payee: displayPayee,
@@ -1103,7 +1103,7 @@ export const useTransactionStore = create((set, get) => ({
     const value = Math.abs(Number(amount) || 0)
     if (value === 0) return { success: false, error: 'Amount is required' }
 
-    const txnDate = date || new Date().toISOString().slice(0, 10)
+    const txnDate = date || todayLocal()
     const memoVal = memo || null
 
     const { data: outRow, error: outErr } = await supabase

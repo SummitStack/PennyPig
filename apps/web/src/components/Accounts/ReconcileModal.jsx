@@ -1,3 +1,5 @@
+import { todayLocal } from '../../lib/money'
+import { ModalBackdrop, modalPanel } from '../ui/Modal'
 import { useMemo, useState } from 'react'
 import { useAccountStore } from '../../store/accountStore'
 import { useTransactionStore } from '../../store/transactionStore'
@@ -13,7 +15,7 @@ function computeClearedBalance(account, transactions) {
 export default function ReconcileModal({ account, onClose, onSuccess }) {
   const reconcileAccount = useAccountStore((state) => state.reconcileAccount)
   const transactions = useTransactionStore((state) => state.transactions)
-  const [statementDate, setStatementDate] = useState(new Date().toISOString().slice(0, 10))
+  const [statementDate, setStatementDate] = useState(todayLocal())
   const [statementBalance, setStatementBalance] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -50,9 +52,9 @@ export default function ReconcileModal({ account, onClose, onSuccess }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 p-4">
+    <ModalBackdrop onClose={onClose}>
       <div
-        className="w-full max-w-md rounded-xl border border-border-hairline bg-surface-base p-space-lg shadow-lg"
+        className={`w-full max-w-md ${modalPanel} p-space-lg `}
         role="dialog"
         aria-labelledby="reconcile-title"
       >
@@ -141,6 +143,6 @@ export default function ReconcileModal({ account, onClose, onSuccess }) {
           </div>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   )
 }

@@ -95,7 +95,7 @@ export default function MonthClosePanel() {
   }
 
   return (
-    <div className="flex flex-col gap-space-sm rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-sm">
+    <div className="card flex flex-col gap-space-sm p-4 sm:p-5">
       <div className="flex items-start justify-between gap-space-sm border-b border-border-hairline pb-1.5">
         <div>
           <div className="font-headline-sm font-bold text-on-surface">Month close</div>

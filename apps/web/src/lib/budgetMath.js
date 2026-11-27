@@ -68,6 +68,30 @@ export function leafActivity({
 }
 
 /**
+ * Real money out in a month: cleared outflows that are not transfers or
+ * income, including transactions nobody has categorized yet. Budget
+ * "activity" for savings goals counts money you set aside, so it can't be
+ * used as spending.
+ */
+export function monthSpending({ transactions, categories, month }) {
+  const byId = categoryById(categories)
+  let total = 0
+  let uncategorized = 0
+  for (const txn of transactions) {
+    if (txn.excludeFromBudget) continue
+    if (txn.cleared === false) continue
+    if (txn.transferAccountId && !txn.categoryId && !txn.isSplit) continue
+    if (monthKeyFromDate(txn.date) !== month) continue
+    const amt = Number(txn.amount) || 0
+    if (amt <= 0) continue
+    if (txn.categoryId && byId[txn.categoryId]?.type === 'income') continue
+    total += amt
+    if (!txn.categoryId && !txn.isSplit) uncategorized += amt
+  }
+  return { total, uncategorized }
+}
+
+/**
  * Cleared expense lines that make up Activity for one or more category ids
  * in a month (includes split contributions).
  */

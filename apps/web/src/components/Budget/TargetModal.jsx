@@ -1,3 +1,4 @@
+import { ModalBackdrop, modalPanel } from '../ui/Modal'
 import { useState } from 'react'
 import Icon from '../ui/Icon'
 
@@ -32,9 +33,9 @@ export default function TargetModal({ category, target, onSave, onClear, onClose
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 p-4">
+    <ModalBackdrop onClose={onClose}>
       <div
-        className="w-full max-w-sm rounded-xl border border-border-hairline bg-surface-base p-space-md shadow-lg"
+        className={`w-full max-w-sm ${modalPanel} p-space-md `}
         role="dialog"
         aria-labelledby="target-modal-title"
       >
@@ -123,6 +124,6 @@ export default function TargetModal({ category, target, onSave, onClear, onClose
           </div>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   )
 }

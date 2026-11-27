@@ -8,7 +8,7 @@ function mapAccount(row) {
     type: row.account_type,
     plaidAccountId: row.plaid_account_id,
     plaidItemId: row.plaid_item_id,
-    accountNumber: row.mask ? `****${row.mask}` : '••••',
+    accountNumber: row.mask ? `••${row.mask}` : '',
     mask: row.mask || null,
     institution: row.institution_name || (row.plaid_account_id ? 'Linked account' : 'Manual account'),
     balance: Number(row.balance) || 0,
@@ -60,13 +60,20 @@ export const useAccountStore = create((set, get) => ({
     } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not signed in' }
 
+    // A positive starting balance on an on-budget cash account is money you can
+    // budget. Record it as a "Starting balance" inflow so it reaches Ready to
+    // Assign (before, it only changed the account balance). The account starts
+    // at 0 and the inflow brings it to the entered balance.
+    const startingAmount = Number(balance) || 0
+    const recordStarting = onBudget && accountType !== 'credit' && startingAmount > 0
+
     const { data, error } = await supabase
       .from('accounts')
       .insert({
         user_id: user.id,
         name: String(name || '').trim(),
         account_type: accountType,
-        balance: Number(balance) || 0,
+        balance: recordStarting ? 0 : startingAmount,
         is_manual: true,
         on_budget: onBudget,
         plaid_account_id: null,
@@ -105,6 +112,35 @@ export const useAccountStore = create((set, get) => ({
       }))
     } catch {
       // transactionStore may not be loaded yet
+    }
+
+    if (recordStarting) {
+      const { useTransactionStore } = await import('./transactionStore')
+      const txStore = useTransactionStore.getState()
+      const incomeLeaves = (txStore.categories || []).filter(
+        (c) => c.type === 'income' && !(txStore.categories || []).some((k) => k.parentId === c.id)
+      )
+      const incomeCat =
+        incomeLeaves.find((c) => /other income/i.test(c.name)) || incomeLeaves[0] || null
+      const { todayLocal } = await import('../lib/money')
+      const result = await txStore.createTransaction({
+        date: todayLocal(),
+        payee: 'Starting balance',
+        amount: startingAmount,
+        inflow: true,
+        accountId: account.id,
+        categoryId: incomeCat?.id || null,
+      })
+      if (result.success) {
+        account = { ...account, balance: startingAmount }
+      } else {
+        // Fall back to setting the balance directly so the account still matches the bank.
+        await supabase.from('accounts').update({ balance: startingAmount }).eq('id', account.id)
+        account = { ...account, balance: startingAmount }
+        set((state) => ({
+          linkedAccounts: state.linkedAccounts.map((a) => (a.id === account.id ? account : a)),
+        }))
+      }
     }
 
     return { success: true, account }

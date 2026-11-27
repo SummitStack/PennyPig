@@ -1,3 +1,4 @@
+import { ModalBackdrop, modalPanel } from '../ui/Modal'
 import { formatMoney } from '../../lib/money'
 import Icon from '../ui/Icon'
 
@@ -27,9 +28,9 @@ export default function ActivityDetailModal({
   const signed = lines.some((l) => l.isBudgeted || Number(l.amount) < 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 p-4">
+    <ModalBackdrop onClose={onClose}>
       <div
-        className="flex max-h-[min(90vh,32rem)] w-full max-w-lg flex-col rounded-xl border border-border-hairline bg-surface-base shadow-lg"
+        className={`flex max-h-[min(90vh,32rem)] w-full max-w-lg flex-col ${modalPanel} `}
         role="dialog"
         aria-labelledby="activity-detail-title"
       >
@@ -120,6 +121,6 @@ export default function ActivityDetailModal({
           </span>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   )
 }
