@@ -66,6 +66,13 @@ export const useAccountStore = create((set, get) => ({
     // at 0 and the inflow brings it to the entered balance.
     const startingAmount = Number(balance) || 0
     const recordStarting = onBudget && accountType !== 'credit' && startingAmount > 0
+    // Debt you already owe (credit card, loan) is recorded as a "Starting
+    // balance" transaction too, but kept out of the budget: it was spent before
+    // you started budgeting, so it shouldn't show as this month's spending or
+    // pull from Ready to Assign. Before, the balance appeared with no
+    // transaction behind it, so the register never added up to it.
+    const isDebt = accountType === 'credit' || accountType === 'loan'
+    const recordDebt = isDebt && Math.abs(startingAmount) >= 0.005
 
     const { data, error } = await supabase
       .from('accounts')
@@ -73,7 +80,7 @@ export const useAccountStore = create((set, get) => ({
         user_id: user.id,
         name: String(name || '').trim(),
         account_type: accountType,
-        balance: recordStarting ? 0 : startingAmount,
+        balance: recordStarting || recordDebt ? 0 : startingAmount,
         is_manual: true,
         on_budget: onBudget,
         plaid_account_id: null,
@@ -141,6 +148,27 @@ export const useAccountStore = create((set, get) => ({
           linkedAccounts: state.linkedAccounts.map((a) => (a.id === account.id ? account : a)),
         }))
       }
+    }
+
+    if (recordDebt) {
+      const { useTransactionStore } = await import('./transactionStore')
+      const { todayLocal } = await import('../lib/money')
+      const result = await useTransactionStore.getState().createTransaction({
+        date: todayLocal(),
+        payee: 'Starting balance',
+        amount: Math.abs(startingAmount),
+        // Owed is entered as negative: that's money out of the account.
+        inflow: startingAmount > 0,
+        accountId: account.id,
+        excludeFromBudget: true,
+      })
+      account = { ...account, balance: startingAmount }
+      if (!result.success) {
+        await supabase.from('accounts').update({ balance: startingAmount }).eq('id', account.id)
+      }
+      set((state) => ({
+        linkedAccounts: state.linkedAccounts.map((a) => (a.id === account.id ? account : a)),
+      }))
     }
 
     return { success: true, account }

@@ -1038,6 +1038,7 @@ export const useTransactionStore = create((set, get) => ({
     accountId,
     memo = '',
     inflow = false,
+    excludeFromBudget = false,
   }) => {
     if (!supabase) return { success: false, error: 'Supabase not configured' }
     const {
@@ -1051,7 +1052,7 @@ export const useTransactionStore = create((set, get) => ({
     const value = signedAmount(amount, inflow)
 
     let resolvedCategoryId = categoryId
-    if (!resolvedCategoryId) {
+    if (!resolvedCategoryId && !excludeFromBudget) {
       resolvedCategoryId = resolveCategoryFromRules(cleanPayee, get().categoryRules)
     }
 
@@ -1069,6 +1070,7 @@ export const useTransactionStore = create((set, get) => ({
         description: displayPayee,
         status: 'posted',
         cleared: true,
+        exclude_from_budget: excludeFromBudget,
       })
       .select('*')
       .single()
@@ -1377,6 +1379,7 @@ export const useTransactionStore = create((set, get) => ({
   getUncategorizedTransactions: () => {
     return get().transactions.filter((t) => {
       if (isPureTransfer(t)) return false
+      if (t.excludeFromBudget) return false
       if (t.isSplit) return (t.splits || []).some((s) => !s.categoryId)
       return !t.categoryId
     })
@@ -1486,6 +1489,7 @@ export const useTransactionStore = create((set, get) => ({
         if (uncategorizedOnly) {
           const uncat =
             !isPureTransfer(t) &&
+            !t.excludeFromBudget &&
             ((!t.categoryId && !t.isSplit) ||
               (t.isSplit && (t.splits || []).some((s) => !s.categoryId)))
           if (!uncat) return false

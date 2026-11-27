@@ -9,7 +9,8 @@ import Icon from '../components/ui/Icon'
 import { getLeafCategories, isUnderSavingsGoals } from '../lib/categories'
 import { monthSpending, incomeForMonth } from '../lib/budgetMath'
 import { currentMonthKey, formatMonthLabel, money } from '../lib/money'
-import { currentNetWorth } from '../lib/reportMath'
+import { currentNetWorth, netWorthByMonth } from '../lib/reportMath'
+import RecurringPanel from '../components/Transactions/RecurringPanel'
 
 function accountIcon(type) {
   if (type === 'credit') return 'credit_card'
@@ -22,6 +23,55 @@ function greeting() {
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
   return 'Good evening'
+}
+
+function NetWorthTrend({ points, now, onOpen }) {
+  const series = points.slice(-12)
+  if (series.length < 2) return null
+  const values = series.map((p) => p.netWorth)
+  const first = values[0]
+  const change = now - first
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min || 1
+  const w = 240
+  const h = 64
+  const step = w / (series.length - 1)
+  const pts = values.map((v, i) => [i * step, h - 4 - ((v - min) / span) * (h - 8)])
+  const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const area = `${line} L${w},${h} L0,${h} Z`
+  const up = change >= 0
+  const firstLabel = new Date(`${series[0].month}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+
+  return (
+    <section className="card p-5 sm:p-6" data-testid="networth-trend">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="font-display text-headline-sm text-on-surface">Net worth</h2>
+          <p className="num mt-1 text-headline-sm font-semibold text-on-surface">{money(now)}</p>
+          <p className={`text-label-md ${up ? 'text-primary' : 'text-status-error'}`}>
+            {up ? '+' : '-'}
+            {money(Math.abs(change))} since {firstLabel}
+          </p>
+        </div>
+        <button type="button" onClick={onOpen} className="btn btn-ghost btn-sm">
+          Reports
+          <Icon name="chevron_right" className="text-[16px]" />
+        </button>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="mt-3 h-16 w-full" aria-hidden="true">
+        <path d={area} className={up ? 'fill-primary/10' : 'fill-status-error/10'} />
+        <path
+          d={line}
+          fill="none"
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+          strokeLinejoin="round"
+          className={up ? 'stroke-primary' : 'stroke-status-error'}
+        />
+      </svg>
+    </section>
+  )
 }
 
 function Stat({ label, value, icon, tone = 'neutral', hint }) {
@@ -100,7 +150,8 @@ function Onboarding({ onGo }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const accounts = useAccountStore((state) => state.linkedAccounts)
+  const allAccounts = useAccountStore((state) => state.linkedAccounts)
+  const accounts = useMemo(() => allAccounts.filter((a) => !a.closed), [allAccounts])
   const categories = useTransactionStore((state) => state.categories)
   const transactions = useTransactionStore((state) => state.transactions)
   const budgets = useBudgetStore((state) => state.budgets)
@@ -154,6 +205,10 @@ export default function Dashboard() {
   }, [categories, budgets, transactions, currentMonth])
 
   const netWorth = currentNetWorth(accounts)
+  const netWorthSeries = useMemo(
+    () => netWorthByMonth({ accounts, transactions, endMonth: currentMonth }),
+    [accounts, transactions, currentMonth]
+  )
 
   const now = new Date()
   const day = now.getDate()
@@ -346,6 +401,7 @@ export default function Dashboard() {
           </section>
 
           <div className="flex flex-col gap-5">
+            <RecurringPanel compact />
             <section className="card p-5 sm:p-6">
               <h2 className="font-display text-headline-sm text-on-surface">{pace.title}</h2>
               <p className="mt-1 text-body-sm text-on-surface-variant">{pace.text}</p>
@@ -374,6 +430,7 @@ export default function Dashboard() {
               </div>
             </section>
 
+            <NetWorthTrend points={netWorthSeries} now={netWorth} onOpen={() => navigate('/reports')} />
             <section className="card p-5 sm:p-6">
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="font-display text-headline-sm text-on-surface">Accounts</h2>

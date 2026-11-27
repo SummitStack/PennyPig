@@ -11,7 +11,8 @@ function dateKey(d) {
 }
 
 export default function CsvImportSection() {
-  const accounts = useAccountStore((state) => state.linkedAccounts)
+  const allAccounts = useAccountStore((state) => state.linkedAccounts)
+  const accounts = useMemo(() => allAccounts.filter((a) => !a.closed), [allAccounts])
   const createTransaction = useTransactionStore((state) => state.createTransaction)
   const categories = useTransactionStore((state) => state.categories)
   const transactions = useTransactionStore((state) => state.transactions)

@@ -6,6 +6,7 @@ import { authFetch } from '../../lib/authFetch'
 import { money } from '../../lib/money'
 import Icon from '../ui/Icon'
 import ReconcileModal from './ReconcileModal'
+import AccountEditModal from './AccountEditModal'
 
 const TYPE_LABEL = { checking: 'Checking', savings: 'Savings', credit: 'Credit card', loan: 'Loan', investment: 'Investment' }
 
@@ -31,7 +32,7 @@ export default function AccountCard({ account }) {
   const [syncing, setSyncing] = useState(false)
   const [showReconcile, setShowReconcile] = useState(false)
   const [note, setNote] = useState(null)
-  const removeAccount = useAccountStore((state) => state.removeAccount)
+  const [showEdit, setShowEdit] = useState(false)
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadData = useTransactionStore((state) => state.loadData)
   const loadBudgets = useBudgetStore((state) => state.loadBudgets)
@@ -61,15 +62,10 @@ export default function AccountCard({ account }) {
     }
   }
 
-  const handleRemove = async () => {
-    if (!confirm(`Remove ${account.name}? Its transactions will be removed too.`)) return
-    const result = await removeAccount(account.id)
-    if (!result.success) setNote({ tone: 'error', text: result.error || 'Failed to remove account' })
-    else await loadData()
-  }
-
   const isCredit = account.type === 'credit'
-  const subtitle = account.isManual
+  const subtitle = account.closed
+    ? 'Closed'
+    : account.isManual
     ? [TYPE_LABEL[account.type] || 'Account', 'Manual', account.onBudget ? null : 'Tracking only']
         .filter(Boolean)
         .join(' · ')
@@ -92,12 +88,12 @@ export default function AccountCard({ account }) {
         </div>
         <button
           type="button"
-          onClick={handleRemove}
-          className="btn btn-ghost h-8 w-8 p-0 hover:text-status-error"
-          aria-label={`Remove ${account.name}`}
-          title="Remove account"
+          onClick={() => setShowEdit(true)}
+          className="btn btn-ghost h-8 w-8 p-0"
+          aria-label={`Edit ${account.name}`}
+          title="Edit, close or delete"
         >
-          <Icon name="delete" className="text-[18px]" />
+          <Icon name="edit" className="text-[18px]" />
         </button>
       </div>
 
@@ -139,6 +135,7 @@ export default function AccountCard({ account }) {
       )}
 
       {showReconcile && <ReconcileModal account={account} onClose={() => setShowReconcile(false)} />}
+      {showEdit && <AccountEditModal account={account} onClose={() => setShowEdit(false)} />}
     </div>
   )
 }

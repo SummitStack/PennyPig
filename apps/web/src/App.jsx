@@ -11,6 +11,8 @@ import Settings from './routes/Settings'
 import Reports from './routes/Reports'
 import Login from './routes/Login'
 import Signup from './routes/Signup'
+import ForgotPassword from './routes/ForgotPassword'
+import ResetPassword from './routes/ResetPassword'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuthStore()
@@ -34,6 +36,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />

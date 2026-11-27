@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useBudgetStore, useReadyToAssign } from '../store/budgetStore'
 import { useAccountStore } from '../store/accountStore'
 import { useTransactionStore } from '../store/transactionStore'
@@ -22,7 +22,8 @@ export default function BudgetsPage() {
   const setCurrentMonth = useBudgetStore((state) => state.setCurrentMonth)
   const loadBudgets = useBudgetStore((state) => state.loadBudgets)
   const loadBudgetHistory = useBudgetStore((state) => state.loadBudgetHistory)
-  const accounts = useAccountStore((state) => state.linkedAccounts)
+  const allAccounts = useAccountStore((state) => state.linkedAccounts)
+  const accounts = useMemo(() => allAccounts.filter((a) => !a.closed), [allAccounts])
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadData = useTransactionStore((state) => state.loadData)
   const [syncLoading, setSyncLoading] = useState(false)
