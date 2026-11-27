@@ -10,6 +10,9 @@ import { getLeafCategories } from '../lib/categories'
 import { leafExpenseOptgroups } from '../lib/categorySuggest'
 import { todayLocal } from '../lib/money'
 import { linkedPlaidAccounts, syncAllLinked } from '../lib/plaidSyncClient'
+import { FREQUENCIES, advanceDate } from '../lib/recurring'
+import { useRecurringStore } from '../store/recurringStore'
+import RecurringPanel, { formatShortDate } from '../components/Transactions/RecurringPanel'
 
 function Field({ id, label, className = '', children }) {
   return (
@@ -46,7 +49,7 @@ function FormShell({ title, onSubmit, onCancel, error, saving, submitLabel, disa
   )
 }
 
-function AddTransactionForm({ accounts, categories, onSubmit, onCancel }) {
+function AddTransactionForm({ accounts, categories, onSubmit, onCancel, canRepeat }) {
   const [date, setDate] = useState(todayLocal())
   const [payee, setPayee] = useState('')
   const [amount, setAmount] = useState('')
@@ -54,6 +57,7 @@ function AddTransactionForm({ accounts, categories, onSubmit, onCancel }) {
   const [categoryId, setCategoryId] = useState('')
   const [memo, setMemo] = useState('')
   const [inflow, setInflow] = useState(false)
+  const [repeat, setRepeat] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -73,6 +77,7 @@ function AddTransactionForm({ accounts, categories, onSubmit, onCancel }) {
       categoryId: categoryId || null,
       memo,
       inflow,
+      repeat: repeat || null,
     })
     setSaving(false)
     if (!result?.success) setError(result?.error || 'Could not add transaction')
@@ -192,9 +197,21 @@ function AddTransactionForm({ accounts, categories, onSubmit, onCancel }) {
           ))}
         </select>
       </Field>
-      <Field id="tx-memo" label="Memo (optional)" className="col-span-2 sm:col-span-6">
+      <Field id="tx-memo" label="Memo (optional)" className={`col-span-2 ${canRepeat ? 'sm:col-span-4' : 'sm:col-span-6'}`}>
         <input id="tx-memo" value={memo} onChange={(e) => setMemo(e.target.value)} className="field" />
       </Field>
+      {canRepeat && (
+        <Field id="tx-repeat" label="Repeat" className="col-span-2 sm:col-span-2">
+          <select id="tx-repeat" value={repeat} onChange={(e) => setRepeat(e.target.value)} className="field">
+            <option value="">Doesn't repeat</option>
+            {FREQUENCIES.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
     </FormShell>
   )
 }
@@ -295,12 +312,16 @@ export default function TransactionsPage() {
   const navigate = useNavigate()
   const filter = useTransactionStore((state) => state.filter)
   const setFilter = useTransactionStore((state) => state.setFilter)
-  const accounts = useTransactionStore((state) => state.accounts)
+  const allAccounts = useTransactionStore((state) => state.accounts)
+  // Closed accounts keep their history but drop out of pickers and filters.
+  const accounts = useMemo(() => allAccounts.filter((a) => !a.closed), [allAccounts])
   const categories = useTransactionStore((state) => state.categories)
   const transactions = useTransactionStore((state) => state.transactions)
   const loadData = useTransactionStore((state) => state.loadData)
   const hydrated = useTransactionStore((state) => state.hydrated)
   const createTransaction = useTransactionStore((state) => state.createTransaction)
+  const createRecurring = useRecurringStore((state) => state.create)
+  const recurringAvailable = useRecurringStore((state) => state.available)
   const createTransfer = useTransactionStore((state) => state.createTransfer)
   const getUncategorizedTransactions = useTransactionStore(
     (state) => state.getUncategorizedTransactions
@@ -356,11 +377,22 @@ export default function TransactionsPage() {
     }
   }
 
-  const handleAdd = async (values) => {
+  const handleAdd = async ({ repeat, ...values }) => {
     const result = await createTransaction(values)
     if (result.success) {
       setShowAdd(false)
-      setFlash({ tone: 'ok', text: 'Transaction added.' })
+      let text = 'Transaction added.'
+      if (repeat) {
+        const rec = await createRecurring({
+          ...values,
+          frequency: repeat,
+          nextDate: advanceDate(values.date, repeat),
+        })
+        text = rec.success
+          ? `Transaction added. Next one is due ${formatShortDate(rec.item.nextDate)}.`
+          : `Transaction added, but it couldn't be set to repeat: ${rec.error}`
+      }
+      setFlash({ tone: 'ok', text })
       await loadBudgets()
     }
     return result
@@ -429,8 +461,11 @@ export default function TransactionsPage() {
             categories={categories}
             onSubmit={handleAdd}
             onCancel={() => setShowAdd(false)}
+            canRepeat={recurringAvailable}
           />
         )}
+
+        <RecurringPanel />
 
         {showTransfer && (
           <TransferForm
@@ -502,9 +537,9 @@ export default function TransactionsPage() {
               className="field sm:w-44"
             >
               <option value="">All accounts</option>
-              {accounts.map((acc) => (
+              {allAccounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name}
+                  {acc.name}{acc.closed ? " (closed)" : ""}
                 </option>
               ))}
             </select>

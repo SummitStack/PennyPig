@@ -4,6 +4,7 @@ import { useBudgetStore } from '../../store/budgetStore'
 import { getLeafCategories } from '../../lib/categories'
 import { leafExpenseOptgroups, resolveToLeafCategoryId } from '../../lib/categorySuggest'
 import { absAmount, formatMoney, isInflow, money } from '../../lib/money'
+import { normalizePayeeKey } from '../../lib/payee'
 import Icon from '../ui/Icon'
 
 function formatDate(d) {
@@ -138,21 +139,30 @@ function SortableTh({ column, sortKey, sortDir, onSort }) {
   )
 }
 
-function CategorySelect({ value, categories, onChange, disabled = false }) {
+function CategorySelect({
+  value,
+  categories,
+  onChange,
+  disabled = false,
+  className = 'w-full max-w-[11rem] cursor-pointer truncate rounded-md border border-transparent bg-transparent px-1 py-1 text-body-sm text-on-surface hover:border-border-hairline focus:border-cool-blue focus:outline-none disabled:cursor-not-allowed disabled:opacity-60',
+  emptyLabel = 'Uncategorized',
+  ariaLabel = 'Category',
+}) {
   const expenseGroups = leafExpenseOptgroups(categories)
   const incomeLeaves = getLeafCategories(categories, 'income')
   const resolvedValue = resolveToLeafCategoryId(categories, value) || value || ''
 
   return (
     <select
-      className="w-full max-w-[11rem] cursor-pointer truncate rounded-md border border-transparent bg-transparent px-1 py-1 text-body-sm text-on-surface hover:border-border-hairline focus:border-cool-blue focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+      className={className}
       value={resolvedValue}
       onChange={(e) => onChange(e.target.value || null)}
       onClick={(e) => e.stopPropagation()}
       disabled={disabled}
+      aria-label={ariaLabel}
       title="Pick a subcategory (final budget category)"
     >
-      <option value="">Uncategorized</option>
+      <option value="">{emptyLabel}</option>
       {expenseGroups.map((group) => (
         <optgroup key={group.label} label={group.label}>
           {group.items.map((leaf) => (
@@ -533,6 +543,10 @@ function TransactionRow({
         <td className="px-1 py-2">
           {isTransfer ? (
             <span className="px-1 text-body-sm text-on-surface-variant">Transfer</span>
+          ) : txn.excludeFromBudget ? (
+            <span className="px-1 text-body-sm text-on-surface-variant" title="Recorded before you started budgeting">
+              Not in budget
+            </span>
           ) : txn.isSplit ? (
             <div className="flex min-w-0 items-center gap-1 px-1">
               <span className="shrink-0 rounded bg-surface-container-high px-1.5 py-0.5 text-label-sm font-semibold text-cool-blue">
@@ -644,6 +658,125 @@ function TransactionRow({
         </tr>
       )}
     </>
+  )
+}
+
+/** Phone layout: one card per transaction instead of a sideways-scrolling table. */
+function TransactionCard({
+  txn,
+  accountsById,
+  categories,
+  selected,
+  onToggleSelected,
+  onCategorize,
+  onToggleCleared,
+  onDelete,
+}) {
+  const isTransfer = Boolean(txn.transferAccountId)
+  const displayPayee = isTransfer
+    ? `Transfer: ${accountsById[txn.transferAccountId]?.name || 'Account'}`
+    : txn.payee
+  const inflow = isInflow(txn.amount)
+  const amt = absAmount(txn.amount)
+
+  return (
+    <li
+      className={`flex items-start gap-3 px-3 py-3 ${selected ? 'bg-primary/10' : ''}`}
+      data-testid="txn-card"
+    >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggleSelected(txn.id)}
+        aria-label={`Select ${displayPayee}`}
+        className="mt-1 accent-primary"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="truncate text-body-md font-medium text-on-surface">{displayPayee}</p>
+          <p
+            className={`num shrink-0 text-body-md font-semibold ${
+              inflow ? 'text-primary' : 'text-on-surface'
+            }`}
+          >
+            {inflow ? '+' : '-'}
+            {money(amt)}
+          </p>
+        </div>
+        <p className="mt-0.5 truncate text-label-md text-on-surface-variant">
+          {formatDate(txn.date)} · {txn.account || '…'}
+          {!txn.cleared && !isTransfer ? ' · Uncleared' : ''}
+        </p>
+        <div className="mt-1.5 flex items-center gap-1">
+          {isTransfer ? (
+            <span className="text-body-sm text-on-surface-variant">Transfer</span>
+          ) : txn.excludeFromBudget ? (
+            <span className="flex-1 text-body-sm text-on-surface-variant">Not in budget</span>
+          ) : txn.isSplit ? (
+            <span className="truncate text-body-sm text-on-surface-variant">
+              Split: {(txn.splits || []).map((s) => s.category || 'Uncategorized').join(', ')}
+            </span>
+          ) : (
+            <CategorySelect
+              value={txn.categoryId}
+              categories={categories}
+              onChange={(id) => onCategorize(txn.id, id)}
+              className={`min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-body-sm ${
+                txn.categoryId
+                  ? 'border-border-hairline bg-surface-base text-on-surface'
+                  : 'border-status-warning/40 bg-status-warning/10 text-on-surface'
+              }`}
+            />
+          )}
+          {!isTransfer && (
+            <button
+              type="button"
+              onClick={() => onToggleCleared(txn.id)}
+              className="btn btn-ghost h-8 w-8 shrink-0 p-0 text-status-success"
+              aria-label={txn.cleared ? 'Unlock and unclear' : 'Clear and lock'}
+            >
+              <Icon name={txn.cleared ? 'lock' : 'radio_button_unchecked'} className="text-[18px]" filled={txn.cleared} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(txn)}
+            className="btn btn-ghost h-8 w-8 shrink-0 p-0 text-on-surface-variant"
+            aria-label="Delete transaction"
+          >
+            <Icon name="delete" className="text-[18px]" />
+          </button>
+        </div>
+      </div>
+    </li>
+  )
+}
+
+/** Shown when transactions are selected: categorize or clear them all at once. */
+function BulkBar({ count, categories, onCategorize, onClear, onDone, busy }) {
+  return (
+    <div
+      className="sticky top-14 z-20 flex flex-wrap items-center gap-2 border-b border-border-hairline bg-surface-container px-3 py-2 lg:top-0"
+      data-testid="bulk-bar"
+    >
+      <span className="text-body-sm font-semibold text-on-surface">{count} selected</span>
+      <CategorySelect
+        value=""
+        categories={categories}
+        onChange={(id) => id && onCategorize(id)}
+        disabled={busy}
+        emptyLabel="Categorize as…"
+        ariaLabel="Categorize selected as"
+        className="field w-auto min-w-[10rem] flex-1 py-1.5 sm:flex-none"
+      />
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onClear} disabled={busy}>
+        <Icon name="lock" className="text-[16px]" />
+        Clear
+      </button>
+      <button type="button" className="btn btn-ghost btn-sm ml-auto" onClick={onDone} disabled={busy}>
+        Deselect
+      </button>
+    </div>
   )
 }
 
@@ -764,8 +897,152 @@ export default function TransactionList() {
     await deleteTransaction(txn.id)
   }
 
+  // After categorizing one transaction, offer to give the same category to the
+  // payee's other uncategorized transactions. Before, the rule only applied to
+  // future imports and older ones had to be done one by one.
+  const [payeePrompt, setPayeePrompt] = useState(null) // { payee, categoryName, ids }
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkNote, setBulkNote] = useState(null)
+
+  useEffect(() => {
+    if (!bulkNote) return undefined
+    const t = setTimeout(() => setBulkNote(null), 4000)
+    return () => clearTimeout(t)
+  }, [bulkNote])
+
+  const handleCategorize = async (id, categoryId) => {
+    const txn = transactions.find((t) => t.id === id)
+    await categorizeTransaction(id, categoryId)
+    if (!categoryId || !txn) return
+    // Match on the name the user sees (payee) or the raw bank text (merchant),
+    // so "Coffee Hut" finds rows whose bank text differs by store number.
+    const payeeKey = normalizePayeeKey(txn.payee)
+    const merchantKey = normalizePayeeKey(txn.merchant)
+    if (!payeeKey && !merchantKey) return
+    const others = useTransactionStore
+      .getState()
+      .transactions.filter(
+        (t) =>
+          t.id !== id &&
+          !t.categoryId &&
+          !t.excludeFromBudget &&
+          !t.transferAccountId &&
+          !t.isSplit &&
+          ((payeeKey && normalizePayeeKey(t.payee) === payeeKey) ||
+            (merchantKey && normalizePayeeKey(t.merchant) === merchantKey))
+      )
+    if (others.length === 0) {
+      setPayeePrompt(null)
+      return
+    }
+    const cat = categories.find((c) => c.id === categoryId)
+    setPayeePrompt({
+      payee: txn.payee || txn.merchant,
+      categoryId,
+      categoryName: cat?.name || 'this category',
+      ids: others.map((t) => t.id),
+    })
+  }
+
+  const applyPayeePrompt = async () => {
+    if (!payeePrompt) return
+    setBulkBusy(true)
+    for (const tid of payeePrompt.ids) {
+      await categorizeTransaction(tid, payeePrompt.categoryId, { skipRuleUpsert: true })
+    }
+    setBulkBusy(false)
+    setBulkNote(
+      `Categorized ${payeePrompt.ids.length} more from ${payeePrompt.payee} as ${payeePrompt.categoryName}.`
+    )
+    setPayeePrompt(null)
+  }
+
+  const selectedTxns = transactions.filter((t) => selectedIds.includes(t.id))
+
+  const bulkCategorize = async (categoryId) => {
+    const eligible = selectedTxns.filter((t) => !t.transferAccountId && !t.isSplit)
+    setBulkBusy(true)
+    for (const t of eligible) {
+      await categorizeTransaction(t.id, categoryId, { skipRuleUpsert: true })
+    }
+    setBulkBusy(false)
+    const cat = categories.find((c) => c.id === categoryId)
+    const skipped = selectedTxns.length - eligible.length
+    setBulkNote(
+      `Categorized ${eligible.length} as ${cat?.name || 'that category'}` +
+        (skipped ? `. Skipped ${skipped} transfer${skipped === 1 ? '' : 's'} or split${skipped === 1 ? '' : 's'}.` : '.')
+    )
+    setSelectedIds([])
+  }
+
+  const bulkClear = async () => {
+    const toClear = selectedTxns.filter((t) => !t.cleared && !t.transferAccountId)
+    setBulkBusy(true)
+    for (const t of toClear) await toggleCleared(t.id)
+    setBulkBusy(false)
+    setBulkNote(`Cleared ${toClear.length} transaction${toClear.length === 1 ? '' : 's'}.`)
+    setSelectedIds([])
+  }
+
   return (
-    <div className="overflow-x-auto">
+    <div>
+      {selectedIds.length > 0 && (
+        <BulkBar
+          count={selectedIds.length}
+          categories={categories}
+          onCategorize={bulkCategorize}
+          onClear={bulkClear}
+          onDone={() => setSelectedIds([])}
+          busy={bulkBusy}
+        />
+      )}
+      {payeePrompt && (
+        <div
+          className="flex flex-wrap items-center gap-2 border-b border-border-hairline bg-primary/10 px-3 py-2 text-body-sm text-on-surface"
+          role="status"
+          data-testid="payee-prompt"
+        >
+          <span className="min-w-0 flex-1">
+            {payeePrompt.ids.length} more from <strong>{payeePrompt.payee}</strong>{' '}
+            {payeePrompt.ids.length === 1 ? 'is' : 'are'} uncategorized. Use {payeePrompt.categoryName} for{' '}
+            {payeePrompt.ids.length === 1 ? 'it' : 'them'} too?
+          </span>
+          <button type="button" className="btn btn-primary btn-sm" onClick={applyPayeePrompt} disabled={bulkBusy}>
+            Apply to {payeePrompt.ids.length}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPayeePrompt(null)}>
+            Not now
+          </button>
+        </div>
+      )}
+      {bulkNote && (
+        <p role="status" className="border-b border-border-hairline bg-primary/10 px-3 py-2 text-body-sm text-primary">
+          {bulkNote}
+        </p>
+      )}
+
+      <ul className="divide-y divide-border-hairline md:hidden">
+        {filtered.length === 0 && (
+          <li className="px-4 py-10 text-center text-body-sm text-on-surface-variant">
+            No transactions here yet. Add one, or import from your bank.
+          </li>
+        )}
+        {filtered.map((txn) => (
+          <TransactionCard
+            key={txn.id}
+            txn={txn}
+            accountsById={accountsById}
+            categories={categories}
+            selected={selectedIds.includes(txn.id)}
+            onToggleSelected={toggleSelected}
+            onCategorize={handleCategorize}
+            onToggleCleared={toggleCleared}
+            onDelete={handleDelete}
+          />
+        ))}
+      </ul>
+
+    <div className="hidden overflow-x-auto md:block">
       <table className="w-full min-w-[34rem] border-collapse text-body-sm md:min-w-[48rem] lg:min-w-[60rem]">
         <thead>
           <tr className="border-b border-border-hairline bg-surface-container-low text-left text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
@@ -818,7 +1095,7 @@ export default function TransactionList() {
                 accountBalance={accountBalance}
                 onToggleSelected={toggleSelected}
                 onToggleSplit={toggleSplit}
-                onCategorize={categorizeTransaction}
+                onCategorize={handleCategorize}
                 onRenamePayee={renamePayee}
                 onUpdateMemo={updateMemo}
                 onToggleCleared={toggleCleared}
@@ -830,6 +1107,7 @@ export default function TransactionList() {
           })}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }

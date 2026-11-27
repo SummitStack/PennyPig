@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { plaidRequest } from '../../../../lib/plaid'
-import { syncTransactionsForAccounts } from '../../../../lib/plaidSync'
+import { recordStartingBalances, syncTransactionsForAccounts } from '../../../../lib/plaidSync'
 import {
   ensureUserProfile,
   mapPlaidAccountType,
@@ -82,6 +82,18 @@ export async function POST(request: NextRequest) {
       )
     } catch (syncErr) {
       console.error('Initial sync warning:', syncErr)
+    }
+
+    // Balance from before the imported window becomes a "Starting balance"
+    // entry, so existing cash reaches Ready to Assign.
+    try {
+      await recordStartingBalances(
+        supabase,
+        user.id,
+        (savedAccounts || []).map((a: { id: string }) => a.id)
+      )
+    } catch (startErr) {
+      console.error('Starting balance warning:', startErr)
     }
 
     return NextResponse.json({

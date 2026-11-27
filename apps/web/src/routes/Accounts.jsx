@@ -14,6 +14,7 @@ export default function AccountsPage() {
   const [showManualForm, setShowManualForm] = useState(false)
 
   const open = linkedAccounts.filter((a) => !a.closed)
+  const closed = linkedAccounts.filter((a) => a.closed)
   const assets = open
     .map(accountNetContribution)
     .filter((n) => n > 0)
@@ -72,10 +73,24 @@ export default function AccountsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {linkedAccounts.map((account) => (
+            {open.map((account) => (
               <AccountCard key={account.id} account={account} />
             ))}
           </div>
+        )}
+
+        {closed.length > 0 && (
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-center gap-1 text-body-sm font-medium text-on-surface-variant">
+              <Icon name="chevron_right" className="text-[18px] transition-transform group-open:rotate-90" />
+              {closed.length} closed account{closed.length === 1 ? '' : 's'}
+            </summary>
+            <div className="mt-3 grid grid-cols-1 gap-3 opacity-80 md:grid-cols-2 xl:grid-cols-3">
+              {closed.map((account) => (
+                <AccountCard key={account.id} account={account} />
+              ))}
+            </div>
+          </details>
         )}
 
         <CsvImportSection />

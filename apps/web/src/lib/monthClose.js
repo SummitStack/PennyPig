@@ -13,6 +13,7 @@ function isPureTransfer(txn) {
 export function uncategorizedInMonth(transactions, month) {
   return (transactions || []).filter((t) => {
     if (isPureTransfer(t)) return false
+    if (t.excludeFromBudget) return false
     if (monthKeyFromDate(t.date) !== month) return false
     if (t.isSplit) return (t.splits || []).some((s) => !s.categoryId)
     return !t.categoryId

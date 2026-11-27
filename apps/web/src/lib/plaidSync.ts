@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { plaidRequest } from './plaid'
 import { isParentCategory } from './categories'
 import { resolveToLeafCategoryId, suggestLeafCategoryId } from './categorySuggest'
+import { startingBalanceDate, startingBalanceEntry } from './startingBalance'
 
 type AccountRow = {
   id: string
@@ -213,4 +214,69 @@ export async function syncTransactionsForAccounts(
 
   if (error) throw new Error(error.message)
   return rows.length
+}
+
+/**
+ * After a bank is first linked, add one "Starting balance" transaction per
+ * account so its register adds up to the bank's balance and existing cash
+ * reaches Ready to Assign. Skips accounts that already have one, so it is
+ * safe to call more than once.
+ */
+export async function recordStartingBalances(
+  supabase: SupabaseClient,
+  userId: string,
+  accountIds: string[]
+): Promise<number> {
+  if (accountIds.length === 0) return 0
+
+  const [{ data: accounts }, { data: txns }, { data: categories }] = await Promise.all([
+    supabase
+      .from('accounts')
+      .select('id, account_type, balance, on_budget')
+      .eq('user_id', userId)
+      .in('id', accountIds),
+    supabase
+      .from('transactions')
+      .select('account_id, amount, date, payee')
+      .eq('user_id', userId)
+      .in('account_id', accountIds),
+    supabase
+      .from('categories')
+      .select('id, name, parent_id, type, sort_order')
+      .eq('user_id', userId)
+      .eq('type', 'income'),
+  ])
+
+  const incomeCats = (categories || []).map(mapCategoryRow)
+  const incomeLeaves = incomeCats.filter((c) => !incomeCats.some((k) => k.parentId === c.id))
+  const incomeCategoryId =
+    incomeLeaves.find((c) => /other income/i.test(c.name))?.id || incomeLeaves[0]?.id || null
+
+  let created = 0
+  for (const account of accounts || []) {
+    const rows = (txns || []).filter((t: any) => t.account_id === account.id)
+    if (rows.some((t: any) => t.payee === 'Starting balance')) continue
+    const entry = startingBalanceEntry({
+      type: account.account_type,
+      balance: Number(account.balance) || 0,
+      importedSum: rows.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0),
+    })
+    if (!entry) continue
+    const offBudget = account.on_budget === false || entry.excludeFromBudget
+    const { error } = await supabase.from('transactions').insert({
+      user_id: userId,
+      account_id: account.id,
+      date: startingBalanceDate(rows.map((t: any) => t.date)),
+      amount: entry.inflow ? -entry.amount : entry.amount,
+      merchant: 'Starting balance',
+      payee: 'Starting balance',
+      description: 'Starting balance',
+      category_id: offBudget || !entry.inflow ? null : incomeCategoryId,
+      status: 'posted',
+      cleared: true,
+      exclude_from_budget: offBudget,
+    })
+    if (!error) created += 1
+  }
+  return created
 }

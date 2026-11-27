@@ -52,3 +52,9 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - Savings categories (Emergency Fund, Vacation) hang directly under Savings Goals
 - Orphan top-level expense categories are moved under **Other**
 - `ensure_user_defaults()` updated; parents cannot be renamed, moved, or deleted in the app
+
+## 20261127_recurring_transactions.sql (round 2, NOT yet applied to live)
+- New `recurring_transactions` table: a template (payee, amount, inflow, category, memo, account) plus `frequency` and `next_date`
+- `anchor_day` keeps monthly and yearly items on the same day of the month (31st stays 31st after February)
+- Row-level security limits each user to their own rows
+- The app hides recurring features until this table exists, so deploying the code first is safe
