@@ -475,6 +475,10 @@ export default function BudgetAllocationTable() {
   const [saving, setSaving] = useState(false)
   const [toolbarBusy, setToolbarBusy] = useState(false)
   const [targetCategory, setTargetCategory] = useState(null)
+  // Income rows take the whole first screen on a phone, so start them folded there.
+  const [incomeOpen, setIncomeOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 640px)').matches
+  )
   const [moveModal, setMoveModal] = useState(null)
   const [activityCategory, setActivityCategory] = useState(null)
 
@@ -1016,7 +1020,16 @@ export default function BudgetAllocationTable() {
       {/* Income: expected vs received so leftovers can be assigned below */}
       <div className="mb-1 flex flex-col border-b border-border-hairline pb-1">
         <div className="grid grid-cols-12 items-center rounded-md bg-primary/10 py-1.5">
-          <div className="col-span-6 flex items-center gap-1 pl-2 sm:col-span-6 sm:pl-6">
+          <div className="col-span-6 flex items-center gap-1 pl-0 sm:col-span-6">
+            <button
+              type="button"
+              onClick={() => setIncomeOpen((v) => !v)}
+              className="flex h-6 w-6 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              aria-label={incomeOpen ? 'Collapse income' : 'Expand income'}
+              aria-expanded={incomeOpen}
+            >
+              <Icon name={incomeOpen ? 'expand_more' : 'chevron_right'} className="text-[18px]" />
+            </button>
             <span className="text-sm" aria-hidden>
               💰
             </span>
@@ -1043,12 +1056,12 @@ export default function BudgetAllocationTable() {
             {money(Math.abs(incomeTotals.extra))}
           </div>
         </div>
-        {incomeLeaves.length === 0 && (
+        {incomeOpen && incomeLeaves.length === 0 && (
           <p className="py-2 pl-12 text-body-sm text-on-surface-variant">
             No income categories yet. Use Edit → Add category → Group: Income.
           </p>
         )}
-        {incomeLeaves.map((cat) => {
+        {incomeOpen && incomeLeaves.map((cat) => {
           const expected = getBudgetedFor(cat.id)
           const received = getIncomeActivityFor(cat.id)
           const extra = getIncomeAvailableFor(cat.id)

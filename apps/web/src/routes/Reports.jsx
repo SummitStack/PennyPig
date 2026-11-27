@@ -71,8 +71,10 @@ export default function Reports() {
   const loadAccounts = useAccountStore((s) => s.loadAccounts)
 
   const [tab, setTab] = useState('spending')
-  const [dateFrom, setDateFrom] = useState(() => monthBounds(currentMonth).from)
+  // Default to the last 3 months: early in a month, "this month" is nearly empty.
+  const [dateFrom, setDateFrom] = useState(() => monthBounds(shiftMonth(currentMonth, -2)).from)
   const [dateTo, setDateTo] = useState(() => monthBounds(currentMonth).to)
+  const [preset, setPresetId] = useState('3m')
 
   useEffect(() => {
     loadData()
@@ -81,9 +83,9 @@ export default function Reports() {
   }, [loadData, loadAccounts, loadBudgetHistory])
 
   useEffect(() => {
-    const b = monthBounds(currentMonth)
-    setDateFrom(b.from)
-    setDateTo(b.to)
+    setDateFrom(monthBounds(shiftMonth(currentMonth, -2)).from)
+    setDateTo(monthBounds(currentMonth).to)
+    setPresetId('3m')
   }, [currentMonth])
 
   const splitsByTxn = useMemo(() => {
@@ -148,6 +150,12 @@ export default function Reports() {
   const maxNw = Math.max(1, ...netWorthSeries.map((p) => Math.abs(p.netWorth)), Math.abs(netNow))
 
   const setPreset = (preset) => {
+    setPresetId(preset)
+    if (preset === '3m') {
+      setDateFrom(monthBounds(shiftMonth(currentMonth, -2)).from)
+      setDateTo(monthBounds(currentMonth).to)
+      return
+    }
     if (preset === 'this') {
       const b = monthBounds(currentMonth)
       setDateFrom(b.from)
@@ -253,7 +261,10 @@ export default function Reports() {
             <input
               type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onChange={(e) => {
+                setDateFrom(e.target.value)
+                setPresetId(null)
+              }}
               className="rounded-lg border border-border-hairline bg-surface-container-high px-2 py-1.5 text-body-sm text-on-surface"
             />
           </label>
@@ -262,7 +273,10 @@ export default function Reports() {
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              onChange={(e) => {
+                setDateTo(e.target.value)
+                setPresetId(null)
+              }}
               className="rounded-lg border border-border-hairline bg-surface-container-high px-2 py-1.5 text-body-sm text-on-surface"
             />
           </label>
@@ -270,6 +284,7 @@ export default function Reports() {
             {[
               ['this', 'This month'],
               ['last', 'Last month'],
+              ['3m', '3 mo'],
               ['ytd', 'YTD'],
               ['12m', '12 mo'],
             ].map(([id, label]) => (
@@ -277,7 +292,12 @@ export default function Reports() {
                 key={id}
                 type="button"
                 onClick={() => setPreset(id)}
-                className="rounded-lg border border-border-hairline bg-surface-container px-2 py-1 text-label-sm text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                aria-pressed={preset === id}
+                className={`rounded-lg border px-2 py-1 text-label-sm transition-colors ${
+                  preset === id
+                    ? 'border-primary/40 bg-primary/10 font-semibold text-primary'
+                    : 'border-border-hairline bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                }`}
               >
                 {label}
               </button>

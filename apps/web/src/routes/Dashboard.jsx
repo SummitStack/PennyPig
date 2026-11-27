@@ -179,8 +179,9 @@ export default function Dashboard() {
 
   const { categoryRows, spendBudgeted, spendSpent } = useMemo(() => {
     // Savings goals are money set aside, not spending, so leave them out here.
+    // Card payment categories hold money for the card bill, not spending.
     const leaves = getLeafCategories(categories, 'expense').filter(
-      (cat) => !isUnderSavingsGoals(categories, cat)
+      (cat) => !isUnderSavingsGoals(categories, cat) && !cat.isCcPayment
     )
     const rows = leaves
       .map((cat) => {
@@ -254,7 +255,21 @@ export default function Dashboard() {
     neutral: 'bg-outline-variant',
   }[pace.tone]
 
-  const name = (user?.email || '').split('@')[0]
+  // A first name if they gave one; never the part of their email before the @.
+  const meta = user?.user_metadata || {}
+  const name = String(meta.first_name || meta.full_name || meta.name || '').trim().split(/\s+/)[0] || ''
+
+  // With nothing assigned or spent this month, show where the money already
+  // sitting in categories is, instead of "$0.00 of $0.00".
+  const groupAvailable =
+    usedPct == null && spendSpent === 0
+      ? categories
+          .filter((g) => g.type === 'expense' && categories.some((c) => c.parentId === g.id && !categories.some((k) => k.parentId === c.id)))
+          .map((g) => ({ id: g.id, name: g.name, emoji: g.emoji, available: getAvailableFor(g.id) }))
+          .filter((g) => Math.abs(g.available) >= 0.005)
+          .sort((a, b) => b.available - a.available)
+      : []
+  const totalHeld = groupAvailable.reduce((sum, g) => sum + g.available, 0)
   const newUser = accounts.length === 0
 
   return (
@@ -424,6 +439,33 @@ export default function Dashboard() {
 
           <div className="flex flex-col gap-5">
             <RecurringPanel compact />
+            {groupAvailable.length > 0 ? (
+              <section className="card p-5 sm:p-6" data-testid="dashboard-held">
+                <h2 className="font-display text-headline-sm text-on-surface">
+                  {money(totalHeld)} ready in your categories
+                </h2>
+                <p className="mt-1 text-body-sm text-on-surface-variant">
+                  Nothing assigned or spent in {monthLabel} yet. This is what carried over.
+                </p>
+                <ul className="mt-3">
+                  {groupAvailable.slice(0, 5).map((g) => (
+                    <li key={g.id} className="flex items-center justify-between gap-3 border-b border-border-hairline py-2 last:border-0">
+                      <span className="truncate text-body-sm text-on-surface">
+                        {g.emoji ? `${g.emoji} ` : ''}
+                        {g.name}
+                      </span>
+                      <span className={`num text-body-sm font-semibold ${g.available < 0 ? 'text-status-error' : 'text-on-surface'}`}>
+                        {money(g.available)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" onClick={() => navigate('/budgets')} className="btn btn-ghost btn-sm mt-2 px-0 text-primary">
+                  Assign {monthLabel}
+                  <Icon name="chevron_right" className="text-[16px]" />
+                </button>
+              </section>
+            ) : (
             <section className="card p-5 sm:p-6">
               <h2 className="font-display text-headline-sm text-on-surface">{pace.title}</h2>
               <p className="mt-1 text-body-sm text-on-surface-variant">{pace.text}</p>
@@ -451,6 +493,7 @@ export default function Dashboard() {
                 )}
               </div>
             </section>
+            )}
 
             <NetWorthTrend points={netWorthSeries} now={netWorth} onOpen={() => navigate('/reports')} />
             <section className="card p-5 sm:p-6">
