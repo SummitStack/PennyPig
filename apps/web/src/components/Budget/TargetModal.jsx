@@ -46,7 +46,7 @@ export default function TargetModal({ category, target, onSave, onClear, onClose
         aria-labelledby="target-modal-title"
       >
         <div className="mb-space-sm flex items-center justify-between">
-          <h3 id="target-modal-title" className="text-body-md font-bold text-on-surface">
+          <h3 id="target-modal-title" className="text-body-md font-semibold text-on-surface">
             Target — {category?.emoji} {category?.name}
           </h3>
           <button

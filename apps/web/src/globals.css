@@ -9,44 +9,47 @@
  */
 @layer base {
   :root {
-    --c-surface: 246 247 249;
+    /* Warm, quiet neutrals: an off-white page with white cards on top. */
+    --c-surface: 248 247 244;
     --c-surface-base: 255 255 255;
     --c-surface-container-lowest: 255 255 255;
-    --c-surface-container-low: 250 251 252;
-    --c-surface-container: 242 244 247;
-    --c-surface-container-high: 232 235 240;
-    --c-border-hairline: 228 231 236;
-    --c-outline-variant: 214 218 225;
-    --c-on-surface: 15 23 42;
-    --c-on-surface-variant: 91 100 117;
-    --c-primary: 5 150 105;
+    --c-surface-container-low: 251 250 248;
+    --c-surface-container: 242 241 237;
+    --c-surface-container-high: 234 232 227;
+    --c-border-hairline: 232 230 225;
+    --c-outline-variant: 214 211 204;
+    --c-on-surface: 28 27 25;
+    --c-on-surface-variant: 112 108 101;
+    /* One accent. Green means money you have; red only means a problem. */
+    --c-primary: 4 120 87;
     --c-on-primary: 255 255 255;
-    --c-secondary: 219 39 119;
-    --c-cool-blue: 37 99 235;
-    --c-status-success: 22 163 74;
-    --c-status-warning: 217 119 6;
-    --c-status-error: 220 38 38;
+    --c-secondary: 4 120 87;
+    --c-cool-blue: 112 108 101;
+    --c-status-success: 4 120 87;
+    --c-status-warning: 180 83 9;
+    --c-status-error: 196 43 43;
     color-scheme: light;
   }
 
   .dark {
-    --c-surface: 10 12 16;
-    --c-surface-base: 17 20 26;
-    --c-surface-container-lowest: 8 10 13;
-    --c-surface-container-low: 14 17 22;
-    --c-surface-container: 23 27 35;
-    --c-surface-container-high: 31 36 46;
-    --c-border-hairline: 35 40 51;
-    --c-outline-variant: 45 52 66;
-    --c-on-surface: 243 244 246;
-    --c-on-surface-variant: 152 161 176;
-    --c-primary: 52 211 153;
-    --c-on-primary: 3 20 14;
-    --c-secondary: 244 114 182;
-    --c-cool-blue: 96 165 250;
-    --c-status-success: 74 222 128;
-    --c-status-warning: 251 191 36;
-    --c-status-error: 248 113 113;
+    /* Neutral near-black, not navy. Surfaces step up in small, even amounts. */
+    --c-surface: 12 12 13;
+    --c-surface-base: 21 21 23;
+    --c-surface-container-lowest: 9 9 10;
+    --c-surface-container-low: 17 17 19;
+    --c-surface-container: 29 29 32;
+    --c-surface-container-high: 38 38 42;
+    --c-border-hairline: 37 37 41;
+    --c-outline-variant: 54 54 59;
+    --c-on-surface: 237 236 233;
+    --c-on-surface-variant: 160 157 151;
+    --c-primary: 61 207 150;
+    --c-on-primary: 4 22 15;
+    --c-secondary: 61 207 150;
+    --c-cool-blue: 160 157 151;
+    --c-status-success: 61 207 150;
+    --c-status-warning: 245 180 60;
+    --c-status-error: 244 112 112;
     color-scheme: dark;
   }
 
@@ -58,7 +61,8 @@
 
   body {
     overscroll-behavior: none;
-    font-feature-settings: 'cv11', 'ss01';
+    /* Inter: open digits, single-storey a off, and tabular figures so money lines up. */
+    font-feature-settings: 'cv11', 'ss01', 'tnum';
     @apply bg-surface font-sans text-body-md text-on-surface antialiased;
   }
 
@@ -99,21 +103,22 @@
 }
 
 @layer components {
+  /* Flat cards: a hairline border does the work a shadow used to. */
   .card {
-    @apply rounded-2xl border border-border-hairline bg-surface-base shadow-card;
+    @apply rounded-xl border border-border-hairline bg-surface-base;
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-body-sm font-semibold transition-colors disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-[7px] text-body-sm font-medium transition-colors disabled:opacity-50;
   }
   .btn-sm {
-    @apply px-2.5 py-1.5 text-label-md;
+    @apply px-2.5 py-1 text-label-md;
   }
   .btn-primary {
     @apply bg-primary text-on-primary hover:bg-primary/90;
   }
   .btn-secondary {
-    @apply border border-border-hairline bg-surface-base text-on-surface hover:bg-surface-container;
+    @apply border border-border-hairline bg-surface-base text-on-surface hover:border-outline-variant hover:bg-surface-container-low;
   }
   .btn-ghost {
     @apply text-on-surface-variant hover:bg-surface-container hover:text-on-surface;
@@ -123,18 +128,37 @@
   }
 
   .field {
-    @apply w-full rounded-lg border border-border-hairline bg-surface-base px-3 py-2 text-body-md text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/70 focus:border-primary focus:ring-2 focus:ring-primary/20;
+    @apply w-full rounded-lg border border-border-hairline bg-surface-base px-3 py-[7px] text-body-md text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/70 hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/15;
+  }
+  /* Native selects get the same quiet chevron as the rest of the app. */
+  select.field {
+    @apply appearance-none bg-no-repeat pr-8;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23716c65' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.6rem center;
+  }
+  /* Inline selects inside tables: no box, just a small chevron. */
+  .select-quiet {
+    @apply appearance-none bg-no-repeat pr-5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23908a82' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.15rem center;
+    background-size: 14px;
   }
   .field-label {
     @apply mb-1 block text-label-md text-on-surface-variant;
   }
 
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label-sm font-semibold;
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label-sm font-medium;
   }
 
+  /* Sentence-case section label. Uppercase micro-caps read as a template. */
   .eyebrow {
-    @apply text-label-sm font-semibold uppercase tracking-[0.08em] text-on-surface-variant;
+    @apply text-label-md font-medium text-on-surface-variant;
+  }
+
+  /* Column headers: small, sentence case, quiet. */
+  .th {
+    @apply text-label-md font-medium normal-case tracking-normal text-on-surface-variant;
   }
 }
 
@@ -144,16 +168,3 @@
   scrollbar-color: rgb(var(--c-outline-variant)) transparent;
 }
 
-.material-symbols-rounded {
-  font-family: 'Material Symbols Rounded';
-  font-weight: normal;
-  font-style: normal;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  direction: ltr;
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  user-select: none;
-}

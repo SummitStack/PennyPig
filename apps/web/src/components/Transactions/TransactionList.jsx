@@ -143,17 +143,17 @@ function SortableTh({ column, sortKey, sortDir, onSort }) {
         : 'justify-start'
 
   return (
-    <th className={column.className} aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <th className={`group/th ${column.className}`} aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         type="button"
         onClick={() => onSort(column.key)}
-        className={`inline-flex w-full items-center gap-0.5 ${justify} rounded px-0.5 py-0.5 text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container hover:text-on-surface`}
+        className={`inline-flex w-full items-center gap-0.5 ${justify} rounded px-0.5 py-0.5 text-label-md font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface`}
         title={`Sort by ${column.label}`}
       >
         <span>{column.label}</span>
         <Icon
           name={icon}
-          className={`text-[14px] ${active ? 'text-cool-blue' : 'opacity-50'}`}
+          className={`text-[14px] ${active ? 'text-on-surface' : 'opacity-0 group-hover/th:opacity-50'}`}
         />
       </button>
     </th>
@@ -165,7 +165,7 @@ export function CategorySelect({
   categories,
   onChange,
   disabled = false,
-  className = 'w-full max-w-[11rem] cursor-pointer truncate rounded-md border border-transparent bg-transparent px-1 py-1 text-body-sm text-on-surface hover:border-border-hairline focus:border-cool-blue focus:outline-none disabled:cursor-not-allowed disabled:opacity-60',
+  className = 'select-quiet w-full max-w-[11rem] cursor-pointer truncate rounded-md border border-transparent bg-transparent px-1 py-1 text-body-sm text-on-surface hover:border-border-hairline focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60',
   emptyLabel = 'Uncategorized',
   ariaLabel = 'Category',
 }) {
@@ -256,7 +256,7 @@ function EditablePayee({ txn, displayPayee, onSave, readOnly = false }) {
           }
         }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full rounded border border-cool-blue bg-surface px-1 py-0.5 text-body-sm text-on-surface outline-none"
+        className="w-full rounded border border-primary bg-surface px-1 py-0.5 text-body-sm text-on-surface outline-none"
         title={txn.merchant !== txn.payee ? `Bank: ${txn.merchant}` : undefined}
       />
     )
@@ -316,7 +316,7 @@ function EditableMemo({ txn, onSave }) {
           }
         }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full rounded border border-cool-blue bg-surface px-1 py-0.5 text-body-sm text-on-surface outline-none"
+        className="w-full rounded border border-primary bg-surface px-1 py-0.5 text-body-sm text-on-surface outline-none"
       />
     )
   }
@@ -330,7 +330,7 @@ function EditableMemo({ txn, onSave }) {
       }}
       className="w-full truncate rounded px-1 py-0.5 text-left text-body-sm text-on-surface-variant hover:bg-surface-container"
     >
-      {txn.memo || <span className="opacity-40">—</span>}
+      {txn.memo || <span className="text-on-surface-variant/0 group-hover/row:text-on-surface-variant/50">Add memo</span>}
     </button>
   )
 }
@@ -353,7 +353,7 @@ function SplitEditor({ txn, categories, onSave, onClear, onClose }) {
   const balanced = Math.abs(lineTotal - targetTotal) < 0.01
 
   const field =
-    'rounded border border-border-hairline bg-surface px-1.5 py-0.5 text-body-sm text-on-surface outline-none focus:border-cool-blue'
+    'rounded border border-border-hairline bg-surface px-1.5 py-0.5 text-body-sm text-on-surface outline-none focus:border-primary'
 
   const addLine = () => {
     const remaining = Math.max(0, targetTotal - lineTotal)
@@ -463,7 +463,7 @@ function SplitEditor({ txn, categories, onSave, onClear, onClose }) {
         <button
           type="button"
           onClick={addLine}
-          className="rounded px-2 py-0.5 text-label-sm text-cool-blue hover:bg-surface-container-high"
+          className="rounded px-2 py-0.5 text-label-sm text-primary hover:bg-surface-container-high"
         >
           + Add line
         </button>
@@ -532,12 +532,12 @@ function TransactionRow({
   return (
     <>
       <tr
-        className={`border-b border-border-hairline last:border-0 transition-colors hover:bg-surface-container/60 ${
-          selected ? 'bg-primary/10' : ''
-        } ${!txn.cleared && !isTransfer ? 'bg-surface-container-low/40' : ''}`}
+        className={`group/row border-b border-border-hairline last:border-0 transition-colors hover:bg-surface-container-low ${
+          selected ? 'bg-primary/[0.06]' : ''
+        }`}
         onClick={() => onToggleSelected(txn.id)}
       >
-        <td className="px-3 py-2">
+        <td className="px-3 py-1.5">
           <input
             type="checkbox"
             checked={selected}
@@ -547,10 +547,10 @@ function TransactionRow({
             className="accent-primary"
           />
         </td>
-        <td className="whitespace-nowrap px-2 py-2 text-on-surface-variant">
+        <td className="whitespace-nowrap px-2 py-1.5 text-on-surface-variant">
           {formatDate(txn.date)}
         </td>
-        <td className="max-w-[20rem] px-1 py-2">
+        <td className="max-w-[20rem] px-1 py-1.5">
           <EditablePayee
             txn={txn}
             displayPayee={displayPayee}
@@ -558,12 +558,12 @@ function TransactionRow({
             readOnly={isTransfer}
           />
           {showAccount && (
-            <span className="ml-1 inline-block max-w-full truncate rounded bg-surface-container px-1.5 py-px text-[11px] text-on-surface-variant">
+            <span className="block max-w-full truncate px-1 text-label-md text-on-surface-variant">
               {txn.account || '…'}
             </span>
           )}
         </td>
-        <td className="px-1 py-2">
+        <td className="px-1 py-1.5">
           {isTransfer ? (
             <span className="px-1 text-body-sm text-on-surface-variant">Transfer</span>
           ) : txn.excludeFromBudget ? (
@@ -572,7 +572,7 @@ function TransactionRow({
             </span>
           ) : txn.isSplit ? (
             <div className="flex min-w-0 items-center gap-1 px-1">
-              <span className="shrink-0 rounded bg-surface-container-high px-1.5 py-0.5 text-label-sm font-semibold text-cool-blue">
+              <span className="shrink-0 rounded bg-surface-container-high px-1.5 py-0.5 text-label-sm font-medium text-on-surface-variant">
                 Split
               </span>
               <span className="truncate text-body-sm text-on-surface-variant">
@@ -595,16 +595,16 @@ function TransactionRow({
         <td className="hidden px-1 py-2 xl:table-cell">
           <EditableMemo txn={txn} onSave={onUpdateMemo} />
         </td>
-        <td className="whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums text-on-surface">
-          {outflow != null ? `-${formatMoney(outflow)}` : ''}
+        <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-on-surface">
+          {outflow != null ? `\u2212${formatMoney(outflow)}` : ''}
         </td>
-        <td className="whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums text-primary">
+        <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-primary">
           {inflowAmt != null ? `+${formatMoney(inflowAmt)}` : ''}
         </td>
         {showBalance && (
           <td
             className={`hidden whitespace-nowrap px-2 py-2 text-right tabular-nums lg:table-cell ${
-              accountBalance < 0 ? 'text-status-error' : 'text-on-surface-variant'
+              'text-on-surface-variant'
             }`}
             title="Account balance after this transaction"
           >
@@ -620,7 +620,7 @@ function TransactionRow({
                   e.stopPropagation()
                   onToggleSplit(txn.id)
                 }}
-                className="rounded p-0.5 text-on-surface-variant hover:bg-surface-container-high hover:text-cool-blue"
+                className="rounded p-1 text-on-surface-variant opacity-0 transition-opacity hover:bg-surface-container-high hover:text-on-surface focus-visible:opacity-100 group-hover/row:opacity-100"
                 title={splitOpen ? 'Close split editor' : 'Split transaction'}
                 aria-label="Split transaction"
               >
@@ -633,7 +633,9 @@ function TransactionRow({
                 e.stopPropagation()
                 onToggleCleared(txn.id)
               }}
-              className="inline-flex cursor-pointer items-center justify-center rounded p-0.5 text-status-success hover:bg-status-success/10"
+              className={`inline-flex cursor-pointer items-center justify-center rounded p-1 hover:bg-surface-container-high ${
+                txn.cleared ? 'text-on-surface-variant/70 hover:text-on-surface' : 'text-status-warning'
+              }`}
               title={
                 txn.cleared
                   ? 'Locked & cleared — on budget. Click to unlock (unclear).'
@@ -642,9 +644,9 @@ function TransactionRow({
               aria-label={txn.cleared ? 'Unlock and unclear' : 'Clear and lock'}
             >
               {txn.cleared ? (
-                <Icon name="lock" className="text-[18px]" filled />
+                <Icon name="lock" className="text-[15px]" />
               ) : (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-status-success text-[11px] font-bold text-status-success">
+                <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border-[1.5px] border-current text-[9px] font-semibold">
                   C
                 </span>
               )}
@@ -655,7 +657,7 @@ function TransactionRow({
                 e.stopPropagation()
                 onDelete(txn)
               }}
-              className="rounded p-0.5 text-on-surface-variant hover:bg-status-error/10 hover:text-status-error"
+              className="rounded p-1 text-on-surface-variant opacity-0 transition-opacity hover:bg-status-error/10 hover:text-status-error focus-visible:opacity-100 group-hover/row:opacity-100"
               title="Delete transaction"
               aria-label="Delete transaction"
             >
@@ -666,7 +668,7 @@ function TransactionRow({
       </tr>
       {splitOpen && !isTransfer && (
         <tr className="border-b border-border-hairline/70 bg-surface-container/40">
-          <td colSpan={columnCount} className="px-3 py-2">
+          <td colSpan={columnCount} className="px-3 py-1.5">
             <SplitEditor
               txn={txn}
               categories={categories}
@@ -716,11 +718,11 @@ function TransactionCard({
         <div className="flex items-baseline justify-between gap-2">
           <p className="truncate text-body-md font-medium text-on-surface">{displayPayee}</p>
           <p
-            className={`num shrink-0 text-body-md font-semibold ${
+            className={`num shrink-0 text-body-md font-medium ${
               inflow ? 'text-primary' : 'text-on-surface'
             }`}
           >
-            {inflow ? '+' : '-'}
+            {inflow ? '+' : '\u2212'}
             {money(amt)}
           </p>
         </div>
@@ -743,7 +745,7 @@ function TransactionCard({
               value={txn.categoryId}
               categories={categories}
               onChange={(id) => onCategorize(txn.id, id)}
-              className={`min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-body-sm ${
+              className={`select-quiet min-w-0 flex-1 rounded-lg border px-2 py-1.5 pr-6 text-body-sm ${
                 txn.categoryId
                   ? 'border-border-hairline bg-surface-base text-on-surface'
                   : 'border-status-warning/40 bg-status-warning/10 text-on-surface'
@@ -756,10 +758,10 @@ function TransactionCard({
             <button
               type="button"
               onClick={() => onToggleCleared(txn.id)}
-              className="btn btn-ghost h-8 w-8 shrink-0 p-0 text-status-success"
+              className={`btn btn-ghost h-8 w-8 shrink-0 p-0 ${txn.cleared ? 'text-on-surface-variant' : 'text-status-warning'}`}
               aria-label={txn.cleared ? 'Unlock and unclear' : 'Clear and lock'}
             >
-              <Icon name={txn.cleared ? 'lock' : 'radio_button_unchecked'} className="text-[18px]" filled={txn.cleared} />
+              <Icon name={txn.cleared ? 'lock' : 'radio_button_unchecked'} className="text-[16px]" />
             </button>
           )}
           <button
@@ -1075,7 +1077,7 @@ export default function TransactionList() {
     <div className="hidden overflow-x-auto md:block">
       <table className="w-full min-w-[34rem] border-collapse text-body-sm md:min-w-[44rem]">
         <thead>
-          <tr className="border-b border-border-hairline bg-surface-container-low text-left text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+          <tr className="border-b border-border-hairline text-left text-label-md font-medium text-on-surface-variant">
             <th className="w-8 px-3 py-2.5">
               <input
                 type="checkbox"

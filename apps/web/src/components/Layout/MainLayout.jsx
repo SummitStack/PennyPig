@@ -112,11 +112,11 @@ function UserMenu({ placement = 'down' }) {
         aria-label="Account menu"
         className={
           placement === 'up'
-            ? 'flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-surface-container'
+            ? 'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-container'
             : 'flex h-9 w-9 items-center justify-center rounded-full'
         }
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-cool-blue text-label-md font-bold text-white">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-label-md font-semibold text-on-surface">
           {initial}
         </span>
         {placement === 'up' && (
@@ -185,8 +185,8 @@ export default function MainLayout({ children }) {
   return (
     <div className="min-h-screen bg-surface text-on-surface">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border-hairline bg-surface-container-low px-3 py-5 lg:flex">
-        <AppNavLink to="/" className="mb-8 px-2">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-r border-border-hairline bg-surface-container-low px-3 py-4 lg:flex">
+        <AppNavLink to="/" className="mb-6 px-2 py-1">
           <Logo />
         </AppNavLink>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
@@ -197,17 +197,13 @@ export default function MainLayout({ children }) {
                 key={item.to}
                 to={item.to}
                 aria-current={active ? 'page' : undefined}
-                className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-body-md transition-colors ${
+                className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-body-md transition-colors ${
                   active
-                    ? 'bg-surface-base font-semibold text-on-surface shadow-card ring-1 ring-border-hairline'
+                    ? 'bg-surface-container-high font-medium text-on-surface'
                     : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
                 }`}
               >
-                <Icon
-                  name={item.icon}
-                  filled={active}
-                  className={`text-[20px] ${active ? 'text-primary' : ''}`}
-                />
+                <Icon name={item.icon} className="text-[17px]" />
                 {item.label}
               </AppNavLink>
             )
@@ -217,19 +213,19 @@ export default function MainLayout({ children }) {
           (needsAttention ? (
             <AppNavLink
               to="/accounts"
-              className="mb-3 flex items-center gap-1.5 rounded-lg bg-status-warning/10 px-2.5 py-1.5 text-label-md text-status-warning hover:bg-status-warning/15"
+              className="mb-2 flex items-start gap-2 rounded-md px-2.5 py-1.5 text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
               title="Your banks haven't synced in over a day. Open Accounts to sync or reconnect."
               data-testid="sync-stale"
             >
-              <Icon name="sync_problem" className="text-[14px]" />
+              <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-status-warning" aria-hidden="true" />
               <span>
                 Synced {sync.label}
-                <span className="block font-semibold">Reconnect</span>
+                <span className="block font-medium text-on-surface">Reconnect banks</span>
               </span>
             </AppNavLink>
           ) : (
-            <p className="mb-3 flex items-center gap-1.5 px-2.5 text-label-md text-on-surface-variant">
-              <Icon name="sync" className="text-[14px]" />
+            <p className="mb-2 flex items-center gap-2 px-2.5 text-label-md text-on-surface-variant">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-success" aria-hidden="true" />
               Synced {sync.label}
             </p>
           ))}
@@ -249,7 +245,7 @@ export default function MainLayout({ children }) {
             aria-label="Settings"
             aria-current={settingsActive ? 'page' : undefined}
             className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-surface-container ${
-              settingsActive ? 'text-primary' : 'text-on-surface-variant'
+              settingsActive ? 'text-on-surface' : 'text-on-surface-variant'
             }`}
           >
             <Icon name="settings" className="text-[20px]" />
@@ -258,7 +254,7 @@ export default function MainLayout({ children }) {
         </div>
       </header>
 
-      <main className="lg:pl-60">
+      <main className="lg:pl-56">
         <div className="mx-auto flex w-full max-w-6xl flex-col px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">
           {dataReady ? children : <PageSkeleton />}
         </div>
@@ -279,15 +275,11 @@ export default function MainLayout({ children }) {
                 to={item.to}
                 aria-current={active ? 'page' : undefined}
                 className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors ${
-                  active ? 'text-primary' : 'text-on-surface-variant'
+                  active ? 'text-on-surface' : 'text-on-surface-variant'
                 }`}
               >
-                <span
-                  className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors ${
-                    active ? 'bg-primary/15' : ''
-                  }`}
-                >
-                  <Icon name={item.icon} filled={active} className="text-[22px]" />
+                <span className="flex h-7 w-12 items-center justify-center">
+                  <Icon name={item.icon} filled={active} className="text-[21px]" />
                 </span>
                 {item.short}
               </AppNavLink>

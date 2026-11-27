@@ -10,8 +10,9 @@ import BudgetStartPanel from '../components/Budget/BudgetStartPanel'
 import CardPaymentFixPanel from '../components/Budget/CardPaymentFixPanel'
 import GigIncomePanel from '../components/Budget/GigIncomePanel'
 import Icon from '../components/ui/Icon'
+import Amount from '../components/ui/Amount'
 import { formatMonthLabel, shiftMonth, money } from '../lib/money'
-import { accountNetContribution, isLiability } from '../lib/reportMath'
+import { accountNetContribution } from '../lib/reportMath'
 import { linkedPlaidAccounts, syncAllLinked } from '../lib/plaidSyncClient'
 
 function accountIcon(type) {
@@ -81,8 +82,7 @@ export default function BudgetsPage() {
         data-testid="budget-header"
       >
         <div>
-          <p className="eyebrow hidden md:block">Budget</p>
-          <div className="flex items-center gap-1 md:mt-1">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => changeMonth(-1)}
@@ -106,24 +106,24 @@ export default function BudgetsPage() {
         </div>
 
         <div
-          className={`flex items-center justify-between gap-6 rounded-2xl px-4 py-2.5 ring-1 md:min-w-[20rem] ${
-            negative
-              ? 'bg-status-error/10 ring-status-error/25'
-              : zero
-                ? 'bg-surface-base ring-border-hairline'
-                : 'bg-primary/10 ring-primary/25'
+          className={`flex items-center justify-between gap-6 rounded-xl border bg-surface-base px-4 py-2.5 md:min-w-[20rem] ${
+            negative ? 'border-status-error/40' : 'border-border-hairline'
           }`}
           data-testid="ready-to-assign"
         >
           <div>
             <div
-              className={`text-label-md font-semibold ${
-                negative ? 'text-status-error' : zero ? 'text-on-surface-variant' : 'text-primary'
+              className={`flex items-center gap-2 text-body-sm font-medium ${
+                negative ? 'text-status-error' : 'text-on-surface'
               }`}
             >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${negative ? 'bg-status-error' : zero ? 'bg-outline-variant' : 'bg-primary'}`}
+                aria-hidden="true"
+              />
               Ready to assign
             </div>
-            <div className="text-label-sm text-on-surface-variant">
+            <div className="text-label-md text-on-surface-variant">
               {negative
                 ? 'You assigned more than you have'
                 : zero
@@ -131,13 +131,12 @@ export default function BudgetsPage() {
                   : 'Give these dollars a job'}
             </div>
           </div>
-          <div
-            className={`num font-display text-headline-lg ${
+          <Amount
+            value={money(readyToAssign)}
+            className={`text-[26px] font-medium leading-8 tracking-[-0.025em] ${
               negative ? 'text-status-error' : zero ? 'text-on-surface' : 'text-primary'
             }`}
-          >
-            {money(readyToAssign)}
-          </div>
+          />
         </div>
       </div>
 
@@ -159,7 +158,7 @@ export default function BudgetsPage() {
                   type="button"
                   onClick={handleSync}
                   disabled={syncLoading}
-                  className="btn btn-ghost btn-sm text-cool-blue"
+                  className="btn btn-ghost btn-sm"
                 >
                   <Icon name="sync" className={`text-[16px] ${syncLoading ? 'animate-spin' : ''}`} />
                   {syncLoading ? 'Syncing…' : 'Sync banks'}
@@ -187,14 +186,8 @@ export default function BudgetsPage() {
                   className="flex items-center justify-between gap-3 border-b border-border-hairline py-2.5 last:border-0"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        isLiability(account)
-                          ? 'bg-status-error/10 text-status-error'
-                          : 'bg-cool-blue/10 text-cool-blue'
-                      }`}
-                    >
-                      <Icon name={accountIcon(account.type)} className="text-[18px]" />
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
+                      <Icon name={accountIcon(account.type)} className="text-[16px]" />
                     </span>
                     <div className="min-w-0">
                       <div className="truncate text-body-sm font-medium text-on-surface">
@@ -209,13 +202,11 @@ export default function BudgetsPage() {
                       </div>
                     </div>
                   </div>
-                  <div
-                    className={`num text-body-sm font-semibold ${
-                      accountNetContribution(account) < 0 ? 'text-status-error' : 'text-on-surface'
-                    }`}
-                  >
-                    {money(accountNetContribution(account))}
-                  </div>
+                  <Amount
+                    value={money(accountNetContribution(account))}
+                    className="text-body-sm font-medium text-on-surface"
+                    cents={false}
+                  />
                 </div>
               ))}
             </div>
@@ -224,12 +215,12 @@ export default function BudgetsPage() {
           <MonthClosePanel />
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => navigate('/transactions')} className="btn btn-primary py-2.5">
-              <Icon name="add" className="text-[18px]" />
+            <button type="button" onClick={() => navigate('/transactions')} className="btn btn-secondary py-2">
+              <Icon name="add" className="text-[16px]" />
               Transaction
             </button>
-            <button type="button" onClick={() => navigate('/reports')} className="btn btn-secondary py-2.5">
-              <Icon name="insights" className="text-[18px]" />
+            <button type="button" onClick={() => navigate('/reports')} className="btn btn-secondary py-2">
+              <Icon name="insights" className="text-[16px]" />
               Reports
             </button>
           </div>

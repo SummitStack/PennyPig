@@ -36,7 +36,7 @@ export default function ActivityDetailModal({
       >
         <div className="flex items-center justify-between border-b border-border-hairline px-space-md py-space-sm">
           <div>
-            <h3 id="activity-detail-title" className="text-body-md font-bold text-on-surface">
+            <h3 id="activity-detail-title" className="text-body-md font-semibold text-on-surface">
               Activity · {categoryName}
             </h3>
             <p className="text-label-sm text-on-surface-variant">
@@ -63,7 +63,7 @@ export default function ActivityDetailModal({
           ) : (
             <table className="w-full border-collapse text-body-sm">
               <thead>
-                <tr className="border-b border-border-hairline text-left text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+                <tr className="border-b border-border-hairline text-left text-label-md font-medium text-on-surface-variant">
                   <th className="py-1.5 pr-2">Date</th>
                   <th className="py-1.5 pr-2">Payee</th>
                   <th className="py-1.5 pr-2">Category</th>
@@ -84,7 +84,7 @@ export default function ActivityDetailModal({
                       <td className="max-w-[10rem] truncate py-1.5 pr-2" title={line.payee}>
                         {line.payee}
                         {line.isSplit && (
-                          <span className="ml-1 text-label-sm text-cool-blue">split</span>
+                          <span className="ml-1 text-label-sm text-on-surface-variant">split</span>
                         )}
                         {line.isBudgeted && (
                           <span className="ml-1 text-label-sm text-sage-accent">funded</span>
@@ -116,7 +116,7 @@ export default function ActivityDetailModal({
           <span className="text-label-sm text-on-surface-variant">
             {lines.length} {lines.length === 1 ? 'line' : 'lines'}
           </span>
-          <span className="text-body-sm font-bold tabular-nums text-on-surface">
+          <span className="text-body-sm font-semibold tabular-nums text-on-surface">
             Total {signed ? formatSigned(total) : formatMoney(total)}
           </span>
         </div>

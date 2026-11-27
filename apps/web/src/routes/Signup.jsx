@@ -1,3 +1,4 @@
+import Icon from '../components/ui/Icon'
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
@@ -46,8 +47,8 @@ export default function SignupPage() {
           </Link>
         }
       >
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <span className="material-symbols-rounded text-[28px]">mark_email_read</span>
+        <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Icon name="mark_email_read" className="text-[24px]" />
         </div>
       </AuthShell>
     )

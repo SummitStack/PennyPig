@@ -57,7 +57,7 @@ export default function PlaidReconnectButton({ accountId, onReconnected, onError
       type="button"
       onClick={fetchToken}
       disabled={loading || wantOpen}
-      className="btn btn-primary btn-sm"
+      className="btn btn-secondary btn-sm"
       data-testid="plaid-reconnect"
     >
       <Icon name="link" className="text-[16px]" />

@@ -6,10 +6,11 @@ import { useTransactionStore } from '../store/transactionStore'
 import { useAuthStore } from '../store/authStore'
 import MainLayout from '../components/Layout/MainLayout'
 import Icon from '../components/ui/Icon'
+import Amount from '../components/ui/Amount'
 import { getLeafCategories, isUnderSavingsGoals } from '../lib/categories'
 import { monthSpending, incomeForMonth } from '../lib/budgetMath'
 import { currentMonthKey, formatMonthLabel, money } from '../lib/money'
-import { accountNetContribution, currentNetWorth, isLiability, netWorthByMonth } from '../lib/reportMath'
+import { accountNetContribution, currentNetWorth, netWorthByMonth } from '../lib/reportMath'
 import RecurringPanel from '../components/Transactions/RecurringPanel'
 
 function accountIcon(type) {
@@ -49,9 +50,9 @@ function NetWorthTrend({ points, now, onOpen }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="font-display text-headline-sm text-on-surface">Net worth</h2>
-          <p className="num mt-1 text-headline-sm font-semibold text-on-surface">{money(now)}</p>
-          <p className={`text-label-md ${up ? 'text-primary' : 'text-status-error'}`}>
-            {up ? '+' : '-'}
+          <Amount value={money(now)} className="mt-1 block text-[22px] font-medium leading-7 tracking-[-0.02em] text-on-surface" />
+          <p className={`mt-0.5 text-label-md ${up ? 'text-primary' : 'text-on-surface-variant'}`}>
+            {up ? '+' : '\u2212'}
             {money(Math.abs(change))} since {firstLabel}
           </p>
         </div>
@@ -61,31 +62,36 @@ function NetWorthTrend({ points, now, onOpen }) {
         </button>
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="mt-3 h-16 w-full" aria-hidden="true">
-        <path d={area} className={up ? 'fill-primary/10' : 'fill-status-error/10'} />
+        <defs>
+          <linearGradient id="nw-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="rgb(var(--c-primary))" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="rgb(var(--c-primary))" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#nw-fill)" />
         <path
           d={line}
           fill="none"
-          strokeWidth="2"
+          strokeWidth="1.75"
           vectorEffect="non-scaling-stroke"
           strokeLinejoin="round"
-          className={up ? 'stroke-primary' : 'stroke-status-error'}
+          strokeLinecap="round"
+          className="stroke-primary"
         />
       </svg>
     </section>
   )
 }
 
-function Stat({ label, value, icon, tone = 'neutral', hint }) {
+/** One cell of the summary strip: a quiet label over the number. */
+function Stat({ label, value, tone = 'neutral', hint }) {
   const toneClass =
     tone === 'good' ? 'text-primary' : tone === 'bad' ? 'text-status-error' : 'text-on-surface'
   return (
-    <div className="card p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-label-md font-medium text-on-surface-variant">{label}</span>
-        <Icon name={icon} className="text-[18px] text-on-surface-variant" />
-      </div>
-      <div className={`num mt-2 font-display text-headline-md sm:text-headline-lg ${toneClass}`}>{value}</div>
-      {hint && <div className="mt-1 text-label-md text-on-surface-variant">{hint}</div>}
+    <div className="min-w-0 bg-surface-base px-4 py-4 sm:px-5">
+      <div className="truncate text-label-md text-on-surface-variant">{label}</div>
+      <Amount value={value} className={`mt-1.5 block text-[22px] font-medium leading-7 tracking-[-0.02em] ${toneClass}`} />
+      {hint && <div className="mt-0.5 text-label-md text-on-surface-variant">{hint}</div>}
     </div>
   )
 }
@@ -128,7 +134,7 @@ function Onboarding({ onGo }) {
         {ONBOARDING_STEPS.map((s, i) => (
           <li key={s.title} className="flex flex-col gap-2 p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-label-md font-bold text-primary">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-label-md font-semibold text-primary">
                 {i + 1}
               </span>
               <span className="font-display text-headline-sm text-on-surface">{s.title}</span>
@@ -278,7 +284,7 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="eyebrow">{formatMonthLabel(currentMonth)}</p>
-            <h1 className="mt-1 font-display text-headline-lg text-on-surface">
+            <h1 className="mt-0.5 font-display text-headline-lg text-on-surface">
               {greeting()}
               {name ? `, ${name}` : ''}
             </h1>
@@ -286,11 +292,11 @@ export default function Dashboard() {
           {!newUser && (
             <div className="flex gap-2">
               <button type="button" onClick={() => navigate('/transactions')} className="btn btn-secondary">
-                <Icon name="add" className="text-[18px]" />
+                <Icon name="add" className="text-[16px]" />
                 Transaction
               </button>
               <button type="button" onClick={() => navigate('/budgets')} className="btn btn-primary">
-                <Icon name="account_balance_wallet" className="text-[18px]" />
+                <Icon name="account_balance_wallet" className="text-[16px]" />
                 Assign money
               </button>
             </div>
@@ -302,17 +308,17 @@ export default function Dashboard() {
         {bankIssues.length > 0 && (
           <div
             role="status"
-            className="mb-4 flex flex-col gap-3 rounded-2xl bg-status-warning/10 px-4 py-3 ring-1 ring-status-warning/25 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 rounded-xl border border-border-hairline bg-surface-base px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between"
             data-testid="bank-issue-notice"
           >
-            <p className="flex items-start gap-2 text-body-sm text-on-surface">
-              <Icon name="link_off" className="mt-0.5 text-[18px] text-status-warning" />
+            <p className="flex items-start gap-2.5 text-body-sm text-on-surface">
+              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-status-warning" aria-hidden="true" />
               {bankIssues.some((i) => i.needsReconnect)
                 ? `${bankIssues.find((i) => i.needsReconnect).institution} needs you to sign in again, so new transactions aren't coming in.`
                 : `${bankIssues[0].institution} didn't sync last time. It will try again tomorrow.`}
             </p>
             {bankIssues.some((i) => i.needsReconnect) && (
-              <button type="button" className="btn btn-primary btn-sm shrink-0" onClick={() => navigate('/accounts')}>
+              <button type="button" className="btn btn-secondary btn-sm shrink-0" onClick={() => navigate('/accounts')}>
                 Reconnect
               </button>
             )}
@@ -322,34 +328,25 @@ export default function Dashboard() {
         <button
           type="button"
           onClick={() => navigate('/budgets')}
-          className={`group relative overflow-hidden rounded-2xl p-5 text-left ring-1 transition-shadow hover:shadow-pop sm:p-6 ${
-            readyToAssign < 0
-              ? 'bg-status-error/10 ring-status-error/25'
-              : 'bg-gradient-to-br from-primary/15 via-primary/5 to-cool-blue/10 ring-primary/20'
+          className={`card group p-5 text-left transition-colors hover:border-outline-variant sm:p-6 ${
+            readyToAssign < 0 ? 'border-status-error/40' : ''
           }`}
         >
-          <div
-            className={`pointer-events-none absolute -right-10 -top-12 h-44 w-44 rounded-full blur-3xl ${
-              readyToAssign < 0 ? 'bg-status-error/20' : 'bg-primary/25'
-            }`}
-            aria-hidden="true"
-          />
-          <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <div
-                className={`text-label-md font-semibold ${
-                  readyToAssign < 0 ? 'text-status-error' : 'text-primary'
-                }`}
-              >
+              <div className="flex items-center gap-2 text-body-sm text-on-surface-variant">
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${readyToAssign < 0 ? 'bg-status-error' : 'bg-primary'}`}
+                  aria-hidden="true"
+                />
                 Ready to assign
               </div>
-              <div
-                className={`num mt-1 font-display text-headline-xl ${
+              <Amount
+                value={money(readyToAssign)}
+                className={`mt-1.5 block text-[40px] font-medium leading-[44px] tracking-[-0.03em] ${
                   readyToAssign < 0 ? 'text-status-error' : 'text-on-surface'
                 }`}
-              >
-                {money(readyToAssign)}
-              </div>
+              />
               <div className="mt-1 text-body-sm text-on-surface-variant">
                 {readyToAssign < 0
                   ? 'You assigned more than you have. Move money out of a category.'
@@ -358,31 +355,29 @@ export default function Dashboard() {
                     : 'Every dollar has a job.'}
               </div>
             </div>
-            <span className="inline-flex items-center gap-1 text-body-sm font-semibold text-primary">
+            <span className="inline-flex items-center gap-1 text-body-sm font-medium text-on-surface-variant group-hover:text-on-surface">
               Go to budget
-              <Icon name="arrow_forward" className="text-[18px] transition-transform group-hover:translate-x-0.5" />
+              <Icon name="arrow_forward" className="text-[16px] transition-transform group-hover:translate-x-0.5" />
             </span>
           </div>
         </button>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Stat label={`Money in · ${monthLabel}`} value={money(moneyIn)} icon="south_west" tone="good" />
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-hairline bg-border-hairline lg:grid-cols-4">
+          <Stat label={`Money in · ${monthLabel}`} value={money(moneyIn)} tone="good" />
           <Stat
             label={`Money out · ${monthLabel}`}
             value={money(spent)}
-            icon="north_east"
             hint={uncategorized > 0 ? `${money(uncategorized)} uncategorized` : null}
           />
           <Stat
             label="Net this month"
             value={money(moneyIn - spent)}
-            icon="balance"
             tone={moneyIn - spent < 0 ? 'bad' : 'neutral'}
           />
-          <Stat label="Net worth" value={money(netWorth)} icon="monitoring" />
+          <Stat label="Net worth" value={money(netWorth)} />
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
           <section className="card p-5 sm:p-6 lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -396,7 +391,7 @@ export default function Dashboard() {
             </div>
 
             {categoryRows.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-outline-variant px-4 py-8 text-center text-body-sm text-on-surface-variant">
+              <div className="rounded-lg border border-dashed border-outline-variant px-4 py-8 text-center text-body-sm text-on-surface-variant">
                 No spending yet this month.
               </div>
             ) : (
@@ -414,12 +409,12 @@ export default function Dashboard() {
                           <span className="truncate">{row.name}</span>
                         </span>
                         <span className="num shrink-0 text-body-sm text-on-surface-variant">
-                          <span className="font-semibold text-on-surface">{money(row.activity)}</span>
+                          <span className="font-medium text-on-surface">{money(row.activity)}</span>
                           {' of '}
                           {money(row.budgeted)}
                         </span>
                       </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
                         <div
                           className={`h-full rounded-full ${bar} transition-[width] duration-500`}
                           style={{ width: `${Math.min(pct, 100)}%` }}
@@ -469,7 +464,7 @@ export default function Dashboard() {
             <section className="card p-5 sm:p-6">
               <h2 className="font-display text-headline-sm text-on-surface">{pace.title}</h2>
               <p className="mt-1 text-body-sm text-on-surface-variant">{pace.text}</p>
-              <div className="relative mt-4 h-2.5 w-full overflow-hidden rounded-full bg-surface-container">
+              <div className="relative mt-4 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
                 <div
                   className={`h-full rounded-full ${paceColor}`}
                   style={{ width: `${Math.min(usedPct ?? 0, 100)}%` }}
@@ -515,23 +510,17 @@ export default function Dashboard() {
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <span
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                            isLiability(account)
-                              ? 'bg-status-error/10 text-status-error'
-                              : 'bg-cool-blue/10 text-cool-blue'
-                          }`}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-container text-on-surface-variant"
                         >
                           <Icon name={accountIcon(account.type)} className="text-[18px]" />
                         </span>
                         <span className="truncate text-body-md text-on-surface">{account.name}</span>
                       </div>
-                      <span
-                        className={`num shrink-0 text-body-md font-semibold ${
-                          accountNetContribution(account) < 0 ? 'text-status-error' : 'text-on-surface'
-                        }`}
-                      >
-                        {money(accountNetContribution(account))}
-                      </span>
+                      <Amount
+                        value={money(accountNetContribution(account))}
+                        className="shrink-0 text-body-md font-medium text-on-surface"
+                        cents={false}
+                      />
                     </li>
                   ))}
                 </ul>

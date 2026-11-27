@@ -31,17 +31,17 @@ function RangeBar({ value, max, tone = 'primary' }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
   const color =
     tone === 'income'
-      ? 'bg-status-success'
+      ? 'bg-primary'
       : tone === 'expense'
-        ? 'bg-status-error'
+        ? 'bg-on-surface/70'
         : tone === 'net-pos'
           ? 'bg-sage-accent'
           : tone === 'net-neg'
             ? 'bg-status-error'
-            : 'bg-cool-blue'
+            : 'bg-primary'
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container-high">
-      <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
+      <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
     </div>
   )
 }
@@ -265,7 +265,7 @@ export default function Reports() {
                 setDateFrom(e.target.value)
                 setPresetId(null)
               }}
-              className="rounded-lg border border-border-hairline bg-surface-container-high px-2 py-1.5 text-body-sm text-on-surface"
+              className="field w-auto py-1.5 text-body-sm"
             />
           </label>
           <label className="flex flex-col gap-0.5 text-label-sm text-on-surface-variant">
@@ -277,10 +277,10 @@ export default function Reports() {
                 setDateTo(e.target.value)
                 setPresetId(null)
               }}
-              className="rounded-lg border border-border-hairline bg-surface-container-high px-2 py-1.5 text-body-sm text-on-surface"
+              className="field w-auto py-1.5 text-body-sm"
             />
           </label>
-          <div className="flex flex-wrap gap-1 pt-4">
+          <div className="mt-4 flex flex-wrap gap-0.5 rounded-lg bg-surface-container p-0.5" role="group" aria-label="Date range">
             {[
               ['this', 'This month'],
               ['last', 'Last month'],
@@ -293,10 +293,10 @@ export default function Reports() {
                 type="button"
                 onClick={() => setPreset(id)}
                 aria-pressed={preset === id}
-                className={`rounded-lg border px-2 py-1 text-label-sm transition-colors ${
+                className={`rounded-md px-2.5 py-1 text-label-md transition-colors ${
                   preset === id
-                    ? 'border-primary/40 bg-primary/10 font-semibold text-primary'
-                    : 'border-border-hairline bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                    ? 'bg-surface-base font-medium text-on-surface shadow-[0_1px_2px_rgb(0_0_0/0.06)] ring-1 ring-border-hairline'
+                    : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
                 {label}
@@ -306,16 +306,16 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="mb-space-md flex gap-1 overflow-x-auto border-b border-border-hairline pb-px">
+      <div className="mb-space-md flex gap-4 overflow-x-auto border-b border-border-hairline">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`cursor-pointer whitespace-nowrap rounded-t-lg px-space-md py-2 text-sm transition-colors ${
+            className={`-mb-px cursor-pointer whitespace-nowrap border-b-2 px-0.5 py-2.5 text-body-sm transition-colors ${
               tab === t.id
-                ? 'bg-surface-container-high font-semibold text-on-surface'
-                : 'text-on-surface-variant hover:text-on-surface'
+                ? 'border-on-surface font-medium text-on-surface'
+                : 'border-transparent text-on-surface-variant hover:text-on-surface'
             }`}
           >
             {t.label}
@@ -327,12 +327,12 @@ export default function Reports() {
         <div className="card p-4 sm:p-5">
           <div className="mb-space-md flex items-center justify-between">
             <div>
-              <div className="font-headline-sm font-bold text-on-surface">Spending by category</div>
+              <div className="font-headline-sm font-semibold text-on-surface">Spending by category</div>
               <div className="text-label-sm text-on-surface-variant">
                 Total {money(spending.total)}
               </div>
             </div>
-            <Icon name="pie_chart" className="text-[22px] text-cool-blue" />
+            <Icon name="pie_chart" className="text-[20px] text-on-surface-variant" />
           </div>
           {spending.rows.length === 0 ? (
             <p className="text-body-sm text-on-surface-variant">No spending in this range.</p>
@@ -374,12 +374,12 @@ export default function Reports() {
               className="card p-4 sm:p-5"
             >
               <div className="mb-space-sm flex items-center justify-between">
-                <span className="text-label-md uppercase tracking-wider text-on-surface-variant">
+                <span className="text-label-md text-on-surface-variant">
                   {card.label}
                 </span>
                 <Icon name={card.icon} className="text-[20px] text-on-surface-variant" />
               </div>
-              <div className="text-headline-md font-bold text-on-surface">{money(card.value)}</div>
+              <div className="text-headline-md font-semibold text-on-surface">{money(card.value)}</div>
               <div className="mt-space-sm">
                 <RangeBar
                   value={Math.abs(card.value)}
@@ -394,7 +394,7 @@ export default function Reports() {
 
       {tab === 'trends' && (
         <div className="card p-4 sm:p-5">
-          <div className="mb-space-md font-headline-sm font-bold text-on-surface">
+          <div className="mb-space-md font-headline-sm font-semibold text-on-surface">
             Last 6 months
           </div>
           <div className="flex flex-col gap-space-md">
@@ -438,10 +438,10 @@ export default function Reports() {
         <div className="card p-4 sm:p-5">
           <div className="mb-space-md flex items-end justify-between gap-space-sm">
             <div>
-              <div className="text-label-md uppercase tracking-wider text-on-surface-variant">
+              <div className="text-label-md text-on-surface-variant">
                 Current net worth
               </div>
-              <div className="text-headline-lg font-bold text-on-surface">{money(netNow)}</div>
+              <div className="text-headline-lg font-semibold text-on-surface">{money(netNow)}</div>
             </div>
             <p className="max-w-sm text-right text-label-sm text-on-surface-variant">
               Reconstructed from current balances and transaction history.
@@ -505,11 +505,11 @@ export default function Reports() {
               key={card.title}
               type="button"
               onClick={card.onClick}
-              className="card flex items-start gap-space-md p-4 text-left transition-colors hover:border-cool-blue/40 hover:bg-surface-container"
+              className="card flex items-start gap-space-md p-4 text-left transition-colors hover:border-outline-variant hover:bg-surface-container"
             >
-              <Icon name={card.icon} className="text-[22px] text-cool-blue" />
+              <Icon name={card.icon} className="text-[20px] text-on-surface-variant" />
               <span>
-                <span className="block font-headline-sm font-bold text-on-surface">
+                <span className="block font-headline-sm font-semibold text-on-surface">
                   {card.title}
                 </span>
                 <span className="block text-label-sm text-on-surface-variant">{card.detail}</span>

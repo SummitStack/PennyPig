@@ -59,7 +59,7 @@ export default function ReconcileModal({ account, onClose, onSuccess }) {
         aria-labelledby="reconcile-title"
       >
         <div className="mb-space-md flex items-center justify-between">
-          <h3 id="reconcile-title" className="text-headline-sm font-bold text-on-surface">
+          <h3 id="reconcile-title" className="text-headline-sm font-semibold text-on-surface">
             Reconcile — {account.name}
           </h3>
           <button
@@ -74,7 +74,7 @@ export default function ReconcileModal({ account, onClose, onSuccess }) {
 
         <div className="mb-space-md rounded-lg border border-border-hairline bg-surface-container/50 p-space-md">
           <p className="text-label-sm text-on-surface-variant">Cleared balance (computed)</p>
-          <p className="text-headline-sm font-bold text-on-surface">
+          <p className="text-headline-sm font-semibold text-on-surface">
             ${clearedBalance.toFixed(2)}
           </p>
           <p className="mt-1 text-label-sm text-on-surface-variant">

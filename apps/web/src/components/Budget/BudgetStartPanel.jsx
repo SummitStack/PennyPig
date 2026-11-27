@@ -139,8 +139,8 @@ export default function BudgetStartPanel() {
 
   return (
     <div
-      className={`mb-4 flex flex-col gap-3 rounded-2xl px-4 py-3 ring-1 sm:flex-row sm:items-center sm:justify-between ${
-        startMonth ? 'bg-surface-base ring-border-hairline' : 'bg-status-warning/10 ring-status-warning/25'
+      className={`mb-4 flex flex-col gap-3 rounded-xl px-4 py-2.5 ring-1 sm:flex-row sm:items-center sm:justify-between ${
+        startMonth ? 'bg-surface-base ring-border-hairline' : 'bg-status-warning/[0.06] ring-status-warning/25'
       }`}
       data-testid="budget-start-panel"
     >

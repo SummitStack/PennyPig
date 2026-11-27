@@ -1,15 +1,144 @@
+import {
+  ArrowDown,
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowRight,
+  ArrowUp,
+  ArrowUpRight,
+  Bike,
+  Braces,
+  CalendarClock,
+  ChartLine,
+  ChartPie,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  Circle,
+  CircleAlert,
+  CircleCheck,
+  CircleUser,
+  ClipboardCheck,
+  Copy,
+  CreditCard,
+  FileText,
+  FileUp,
+  Flag,
+  FolderOpen,
+  FolderPlus,
+  House,
+  Landmark,
+  LayoutDashboard,
+  Link,
+  Link2,
+  Link2Off,
+  ListChecks,
+  Lock,
+  LogOut,
+  MailCheck,
+  Menu,
+  Moon,
+  Palette,
+  Pencil,
+  PiggyBank,
+  Plus,
+  ReceiptText,
+  RefreshCw,
+  RefreshCwOff,
+  Rows3,
+  Scale,
+  Search,
+  Settings,
+  Shapes,
+  Split,
+  Sun,
+  Tag,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  X,
+} from 'lucide-react'
+
+/*
+ * One outline icon set (Lucide) behind the names the app already uses, which
+ * came from Material Symbols. Icons size to the surrounding font size, so the
+ * existing `text-[18px]` classes keep working, and nothing loads from Google.
+ */
+const ICONS = {
+  account_balance: Landmark,
+  account_balance_wallet: Wallet,
+  add: Plus,
+  add_link: Link2,
+  arrow_downward: ArrowDown,
+  arrow_forward: ArrowRight,
+  arrow_upward: ArrowUp,
+  balance: Scale,
+  call_split: Split,
+  category: Shapes,
+  check_circle: CircleCheck,
+  chevron_left: ChevronLeft,
+  chevron_right: ChevronRight,
+  close: X,
+  content_copy: Copy,
+  create_new_folder: FolderPlus,
+  credit_card: CreditCard,
+  dark_mode: Moon,
+  data_object: Braces,
+  delete: Trash2,
+  delivery_dining: Bike,
+  edit: Pencil,
+  error: CircleAlert,
+  event_repeat: CalendarClock,
+  expand_more: ChevronDown,
+  fact_check: ClipboardCheck,
+  flag: Flag,
+  folder_open: FolderOpen,
+  insights: ChartLine,
+  label_off: Tag,
+  light_mode: Sun,
+  link: Link,
+  link_off: Link2Off,
+  lock: Lock,
+  logout: LogOut,
+  mark_email_read: MailCheck,
+  menu: Menu,
+  monitoring: ChartLine,
+  north_east: ArrowUpRight,
+  palette: Palette,
+  person: CircleUser,
+  pie_chart: ChartPie,
+  radio_button_unchecked: Circle,
+  real_estate_agent: House,
+  receipt_long: ReceiptText,
+  rule: ListChecks,
+  savings: PiggyBank,
+  search: Search,
+  settings: Settings,
+  south_west: ArrowDownLeft,
+  space_dashboard: LayoutDashboard,
+  summarize: FileText,
+  swap_horiz: ArrowLeftRight,
+  sync_alt: ArrowLeftRight,
+  sync: RefreshCw,
+  sync_problem: RefreshCwOff,
+  table_rows: Rows3,
+  trending_down: TrendingDown,
+  trending_up: TrendingUp,
+  unfold_more: ChevronsUpDown,
+  upload_file: FileUp,
+}
+
+/** `filled` now means a slightly heavier stroke (active nav item, locked row). */
 export default function Icon({ name, className = '', filled = false }) {
+  const Glyph = ICONS[name] || Circle
   return (
-    <span
-      className={`material-symbols-rounded ${className}`}
-      style={
-        filled
-          ? { fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24" }
-          : undefined
-      }
+    <Glyph
+      size="1em"
+      strokeWidth={filled ? 2.25 : 1.75}
+      className={`inline-block shrink-0 ${className}`}
       aria-hidden="true"
-    >
-      {name}
-    </span>
+      focusable="false"
+    />
   )
 }

@@ -203,7 +203,7 @@ export default function CategoryForm({
                     addRole === 'group' ? 'Custom group name' : 'Custom category name'
                   }
                   disabled={isSystemEdit}
-                  className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-cool-blue disabled:opacity-60"
+                  className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-primary disabled:opacity-60"
                 />
               )}
             </div>
@@ -213,7 +213,7 @@ export default function CategoryForm({
               onChange={(e) => setName(e.target.value)}
               placeholder={addRole === 'group' ? 'Group name' : 'Category name'}
               disabled={isSystemEdit}
-              className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-cool-blue disabled:opacity-60"
+              className="w-full rounded-lg border border-border-hairline bg-surface px-space-md py-space-sm text-on-surface outline-none focus:border-primary disabled:opacity-60"
             />
           )}
         </div>

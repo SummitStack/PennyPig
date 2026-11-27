@@ -38,9 +38,9 @@ export default {
       colors,
       borderRadius: {
         DEFAULT: '0.375rem',
-        lg: '0.625rem',
-        xl: '0.875rem',
-        '2xl': '1.25rem',
+        lg: '0.5rem',
+        xl: '0.75rem',
+        '2xl': '0.875rem',
         full: '9999px',
       },
       spacing: {
@@ -54,11 +54,11 @@ export default {
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
-        display: ['var(--font-display)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         'body-md': ['var(--font-sans)', 'system-ui', 'sans-serif'],
-        'headline-sm': ['var(--font-display)', 'system-ui', 'sans-serif'],
-        'headline-md': ['var(--font-display)', 'system-ui', 'sans-serif'],
-        'headline-lg': ['var(--font-display)', 'system-ui', 'sans-serif'],
+        'headline-sm': ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        'headline-md': ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        'headline-lg': ['var(--font-sans)', 'system-ui', 'sans-serif'],
         'label-md': ['var(--font-sans)', 'system-ui', 'sans-serif'],
         'label-sm': ['var(--font-sans)', 'system-ui', 'sans-serif'],
       },
@@ -70,11 +70,11 @@ export default {
         'body-lg': ['16px', { lineHeight: '24px', fontWeight: '400' }],
         'headline-sm': ['16px', { lineHeight: '22px', letterSpacing: '-0.01em', fontWeight: '600' }],
         'headline-md': ['20px', { lineHeight: '26px', letterSpacing: '-0.015em', fontWeight: '600' }],
-        'headline-lg': ['26px', { lineHeight: '32px', letterSpacing: '-0.02em', fontWeight: '700' }],
-        'headline-xl': ['34px', { lineHeight: '40px', letterSpacing: '-0.025em', fontWeight: '700' }],
+        'headline-lg': ['24px', { lineHeight: '30px', letterSpacing: '-0.022em', fontWeight: '600' }],
+        'headline-xl': ['32px', { lineHeight: '38px', letterSpacing: '-0.028em', fontWeight: '600' }],
       },
       boxShadow: {
-        card: '0 1px 2px rgb(0 0 0 / 0.05), 0 1px 1px rgb(0 0 0 / 0.03)',
+        card: '0 1px 0 rgb(0 0 0 / 0.02)',
         pop: '0 16px 40px -12px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.12)',
       },
       keyframes: {

@@ -6,6 +6,7 @@ import { authFetch } from '../../lib/authFetch'
 import { money } from '../../lib/money'
 import { isLiability } from '../../lib/reportMath'
 import Icon from '../ui/Icon'
+import Amount from '../ui/Amount'
 import ReconcileModal from './ReconcileModal'
 import AccountEditModal from './AccountEditModal'
 import PlaidReconnectButton from './PlaidReconnectButton'
@@ -96,12 +97,8 @@ export default function AccountCard({ account }) {
   return (
     <div className="card flex flex-col p-4 sm:p-5">
       <div className="flex items-start gap-3">
-        <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-            isDebt ? 'bg-status-error/10 text-status-error' : 'bg-cool-blue/10 text-cool-blue'
-          }`}
-        >
-          <Icon name={accountIcon(account.type)} className="text-[20px]" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
+          <Icon name={accountIcon(account.type)} className="text-[17px]" />
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-display text-headline-sm text-on-surface">{account.name}</h3>
@@ -121,13 +118,12 @@ export default function AccountCard({ account }) {
       <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-label-md text-on-surface-variant">{isDebt ? 'Balance owed' : 'Balance'}</p>
-          <p
-            className={`num font-display text-headline-lg ${
-              (isDebt ? shown > 0 : shown < 0) ? 'text-status-error' : 'text-on-surface'
+          <Amount
+            value={money(shown)}
+            className={`mt-0.5 block text-[26px] font-medium leading-8 tracking-[-0.025em] ${
+              !isDebt && shown < 0 ? 'text-status-error' : 'text-on-surface'
             }`}
-          >
-            {money(shown)}
-          </p>
+          />
           {ago && <p className="whitespace-nowrap text-label-md text-on-surface-variant">Synced {ago}</p>}
         </div>
         <div className="flex shrink-0 gap-2">
@@ -147,10 +143,11 @@ export default function AccountCard({ account }) {
       {needsReconnect && (
         <div
           role="status"
-          className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-status-warning/10 px-3 py-2"
+          className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border-hairline pt-3"
           data-testid="reconnect-banner"
         >
-          <p className="min-w-0 flex-1 text-label-md text-on-surface">
+          <p className="flex min-w-0 flex-1 items-start gap-2 text-label-md text-on-surface-variant">
+            <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-status-warning" aria-hidden="true" />
             {account.institution || 'Your bank'} needs you to sign in again before it can sync.
           </p>
           <PlaidReconnectButton

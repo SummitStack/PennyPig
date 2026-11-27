@@ -38,7 +38,7 @@ export default function GigIncomePanel() {
     return (
       <section className="card p-4" data-testid="gig-prompt">
         <div className="flex items-start gap-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
             <Icon name="delivery_dining" className="text-[18px]" />
           </span>
           <div>
