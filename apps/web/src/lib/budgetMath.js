@@ -189,8 +189,89 @@ export function leafAssigned(budgetsByMonth, categoryId, month) {
 }
 
 /**
+ * Credit cards on budget that have a payment category.
+ * Returns { payCatByAccount, accountByPayCat }.
+ */
+export function cardLinks(categories, accounts) {
+  const payCatByAccount = {}
+  const accountByPayCat = {}
+  if (!accounts) return { payCatByAccount, accountByPayCat }
+  const byId = categoryById(categories)
+  for (const a of accounts) {
+    if (a.type !== 'credit' || a.onBudget === false || a.closed) continue
+    let catId = a.creditCardCategoryId
+    if (!catId || !byId[catId]) {
+      catId = categories.find((c) => c.isCcPayment && c.linkedAccountId === a.id)?.id
+    }
+    if (!catId) continue
+    payCatByAccount[a.id] = catId
+    accountByPayCat[catId] = a.id
+  }
+  return { payCatByAccount, accountByPayCat }
+}
+
+/**
+ * One pass over a month: expense activity per leaf, spending on each credit
+ * card per leaf, and payments into each card's payment category.
+ */
+function monthLedger({ month, transactions, splitsByTxn, leafIds, links }) {
+  const activity = {}
+  const cardSpend = {} // leafId -> { accountId: amount }
+  const payments = {} // payCatId -> amount
+  const { payCatByAccount, accountByPayCat } = links
+  const add = (obj, k, v) => {
+    obj[k] = (obj[k] || 0) + v
+  }
+  const pairedToPayCat = new Set()
+  for (const txn of transactions) {
+    if (txn.categoryId && accountByPayCat[txn.categoryId] && txn.transferTransactionId) {
+      pairedToPayCat.add(txn.transferTransactionId)
+    }
+  }
+
+  for (const txn of transactions) {
+    if (txn.excludeFromBudget) continue
+    if (txn.cleared === false) continue
+    if (monthKeyFromDate(txn.date) !== month) continue
+    const amt = Number(txn.amount) || 0
+    const cardPayCat = payCatByAccount[txn.accountId]
+
+    // A transfer into a card is a payment on it.
+    if (txn.transferAccountId && !txn.categoryId && !txn.isSplit) {
+      if (cardPayCat && amt < 0 && !pairedToPayCat.has(txn.id)) {
+        add(payments, cardPayCat, -amt)
+      }
+      continue
+    }
+
+    const lines =
+      txn.isSplit && splitsByTxn[txn.id]
+        ? splitsByTxn[txn.id].map((s) => [s.categoryId, Math.max(0, Number(s.amount) || 0)])
+        : [[txn.categoryId, amt > 0 ? amt : 0]]
+    for (const [catId, value] of lines) {
+      if (!value || !leafIds.has(catId)) continue
+      add(activity, catId, value)
+      if (cardPayCat && !accountByPayCat[catId]) {
+        if (!cardSpend[catId]) cardSpend[catId] = {}
+        add(cardSpend[catId], txn.accountId, value)
+      }
+    }
+  }
+  return { activity, cardSpend, payments }
+}
+
+/**
  * Compute carryover + available for all expense leaves from startMonth..endMonth.
- * Returns { available[month][catId], carryover[month][catId], overspend[month] }
+ *
+ * With `accounts`, credit cards work the YNAB way: spending on a card that the
+ * category could cover moves into that card's payment category; spending it
+ * couldn't cover is credit overspending, which becomes debt rather than
+ * coming out of next month's Ready to assign. Payments on the card come out of
+ * the payment category. With a start month, each payment category starts with
+ * what the card owed on the 1st, matching the Ready to assign opening amount.
+ *
+ * Returns { available, carryover, activity, overspend, creditOverspend }:
+ * per-month maps of leaf -> amount; overspend[month] is cash overspending only.
  */
 export function computeAvailability({
   categories,
@@ -199,50 +280,105 @@ export function computeAvailability({
   splitsByTxn = {},
   endMonth,
   startMonth = null,
+  accounts = null,
 }) {
   const leaves = expenseLeaves(categories)
+  const leafIds = new Set(leaves.map((l) => l.id))
+  const links = cardLinks(categories, accounts)
+  const cardModel = Boolean(accounts)
   const start = startMonth || earliestMonth(transactions)
   const available = {}
   const carryover = {}
+  const activityOut = {}
   const overspend = {}
+  const creditOverspend = {}
 
+  const seed = {}
+  if (cardModel && startMonth) {
+    const { byAccount } = openingFunds({ accounts, transactions, month: startMonth })
+    for (const [acctId, catId] of Object.entries(links.payCatByAccount)) {
+      seed[catId] = Math.max(0, -(Number(byAccount[acctId]) || 0))
+    }
+  }
+
+  const round = (n) => Math.round(n * 100) / 100
   let month = start
-  // Walk forward until endMonth (inclusive)
   for (let guard = 0; guard < 240; guard += 1) {
     available[month] = {}
     carryover[month] = {}
+    activityOut[month] = {}
+    creditOverspend[month] = {}
     let monthOverspend = 0
+    const prev = shiftMonth(month, -1)
+    const { activity, cardSpend, payments } = monthLedger({
+      month,
+      transactions,
+      splitsByTxn,
+      leafIds,
+      links,
+    })
+    const moved = {} // payCatId -> funded card spending moved in
+
+    const carryFor = (leafId) => {
+      if (month === start) return Number(seed[leafId] || 0)
+      const prevAvail = available[prev]?.[leafId]
+      return Math.max(0, prevAvail !== undefined ? prevAvail : 0)
+    }
 
     for (const leaf of leaves) {
-      const prev = shiftMonth(month, -1)
-      const prevAvail =
-        available[prev]?.[leaf.id] !== undefined
-          ? available[prev][leaf.id]
-          : 0
-      const carry = Math.max(0, prevAvail)
+      if (links.accountByPayCat[leaf.id]) continue
+      const carry = carryFor(leaf.id)
       const assigned = leafAssigned(budgetsByMonth, leaf.id, month)
-      const activity = leafActivity({
-        categoryId: leaf.id,
-        month,
-        transactions,
-        splitsByTxn,
-        categories,
-      })
-      const avail = carry + assigned - activity
+      const spent = Number(activity[leaf.id] || 0)
+      const avail = carry + assigned - spent
       carryover[month][leaf.id] = carry
       available[month][leaf.id] = avail
-      if (avail < 0 && !leaf.isCcPayment) {
-        monthOverspend += -avail
+      activityOut[month][leaf.id] = spent
+
+      const byCard = cardModel ? cardSpend[leaf.id] || {} : {}
+      const cardTotal = Object.values(byCard).reduce((s, v) => s + v, 0)
+      const over = avail < 0 ? -avail : 0
+      const creditOver = Math.min(over, cardTotal)
+      if (creditOver > 0) creditOverspend[month][leaf.id] = round(creditOver)
+      if (!leaf.isCcPayment) monthOverspend += over - creditOver
+
+      const funded = cardTotal - creditOver
+      if (funded > 0 && cardTotal > 0) {
+        for (const [acctId, value] of Object.entries(byCard)) {
+          const payCat = links.payCatByAccount[acctId]
+          moved[payCat] = (moved[payCat] || 0) + (funded * value) / cardTotal
+        }
       }
     }
 
-    overspend[month] = monthOverspend
+    for (const leaf of leaves) {
+      if (!links.accountByPayCat[leaf.id]) continue
+      const carry = carryFor(leaf.id)
+      const assigned = leafAssigned(budgetsByMonth, leaf.id, month)
+      // Money in from funded spending counts against activity; payments out add.
+      const net = round(
+        Number(activity[leaf.id] || 0) + Number(payments[leaf.id] || 0) - Number(moved[leaf.id] || 0)
+      )
+      const avail = round(carry + assigned - net)
+      carryover[month][leaf.id] = carry
+      available[month][leaf.id] = avail
+      activityOut[month][leaf.id] = net
+      if (avail < 0 && cardModel) monthOverspend += -avail
+    }
+
+    overspend[month] = round(monthOverspend)
     if (month === endMonth) break
     month = shiftMonth(month, 1)
     if (month > endMonth) break
   }
 
-  return { available, carryover, overspend }
+  return {
+    available,
+    carryover,
+    activity: activityOut,
+    overspend,
+    creditOverspend,
+  }
 }
 
 export function incomeForMonth(transactions, categories, month) {
@@ -289,7 +425,8 @@ export function computeReadyToAssign({
     budgetsByMonth,
     splitsByTxn,
     endMonth: month,
-    startMonth: start,
+    startMonth,
+    accounts,
   })
 
   // Walk RTA month by month

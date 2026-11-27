@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useTransactionStore } from './transactionStore'
 import { getLeafCategories, isParentCategory, isUnderSavingsGoals } from '../lib/categories'
 import {
+  cardLinks,
   computeAvailability,
   computeReadyToAssign,
   incomeForMonth,
@@ -245,7 +246,7 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   getActivityFor: (categoryId, month = get().currentMonth) => {
-    const { transactions, categories, splitsByTxn } = get()._context()
+    const { transactions, categories, splitsByTxn, accounts: ctxAccounts } = get()._context()
     const cat = categories.find((c) => c.id === categoryId)
     const children = categories.filter((c) => c.parentId === categoryId)
     // Direct spend on this id (including mis-tagged group rows) + children
@@ -256,6 +257,12 @@ export const useBudgetStore = create((set, get) => ({
       splitsByTxn,
       categories,
     })
+
+    // Card payment categories: funded card spending in, payments out.
+    if (children.length === 0 && cardLinks(categories, ctxAccounts).accountByPayCat[categoryId]) {
+      const { activity } = computeAvailability({ ...get()._context(), endMonth: month })
+      return Number(activity[month]?.[categoryId] || 0)
+    }
 
     // Savings goals: Activity = budgeted funding − outflows (net into the goal)
     if (isUnderSavingsGoals(categories, cat) && children.length === 0) {

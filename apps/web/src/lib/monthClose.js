@@ -34,15 +34,17 @@ export function overspentLeaves({
   splitsByTxn,
   month,
   startMonth = null,
+  accounts = null,
 }) {
   const leaves = getLeafCategories(categories, 'expense')
-  const { available } = computeAvailability({
+  const { available, creditOverspend } = computeAvailability({
     categories,
     transactions,
     budgetsByMonth,
     splitsByTxn,
     endMonth: month,
     startMonth,
+    accounts,
   })
   return leaves
     .map((leaf) => ({
@@ -51,8 +53,10 @@ export function overspentLeaves({
       emoji: leaf.emoji || '',
       available: Number(available[month]?.[leaf.id] || 0),
       isCcPayment: Boolean(leaf.isCcPayment),
+      // Overspent on a credit card: becomes card debt, not a hit to next month.
+      credit: Number(creditOverspend[month]?.[leaf.id] || 0),
     }))
-    .filter((row) => row.available < 0 && !row.isCcPayment)
+    .filter((row) => row.available < 0 && (accounts || !row.isCcPayment))
 }
 
 /**
@@ -77,6 +81,7 @@ export function buildMonthCloseChecklist({
     splitsByTxn,
     month,
     startMonth,
+    accounts,
   })
   const uncleared = unclearedInMonth(transactions, month)
   const onBudgetAccounts = (accounts || []).filter((a) => a.onBudget !== false && !a.closed)

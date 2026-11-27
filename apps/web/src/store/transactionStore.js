@@ -923,24 +923,8 @@ export const useTransactionStore = create((set, get) => ({
       await get().applyCategoryRuleOnCategorize(txn, resolvedId)
     }
 
-    if (resolvedId && txn) {
-      const account = get().accounts.find((a) => a.id === txn.accountId)
-      const cat = get().categories.find((c) => c.id === resolvedId)
-      if (
-        account?.type === 'credit' &&
-        txn.amount > 0 &&
-        cat?.type === 'expense' &&
-        account.creditCardCategoryId
-      ) {
-        const { useBudgetStore } = await import('./budgetStore')
-        const budget = useBudgetStore.getState()
-        const available = budget.getAvailableFor(resolvedId)
-        const moveAmt = Math.min(absAmount(txn.amount), Math.max(0, available))
-        if (moveAmt > 0) {
-          await budget.moveMoney(resolvedId, account.creditCardCategoryId, moveAmt)
-        }
-      }
-    }
+    // Card spending reaches the card's payment category through the budget
+    // math (computeAvailability), so nothing is moved by hand here.
 
     return { success: true }
   },
@@ -1374,6 +1358,62 @@ export const useTransactionStore = create((set, get) => ({
     }
 
     return { success: true, transaction: mapped }
+  },
+
+  /** Keep a transaction out of the budget (and out of Uncategorized). */
+  setExcludeFromBudget: async (transactionId, exclude = true) => {
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+    const patch = { exclude_from_budget: exclude, updated_at: new Date().toISOString() }
+    if (exclude) patch.category_id = null
+    const { error } = await supabase.from('transactions').update(patch).eq('id', transactionId)
+    if (error) return { success: false, error: error.message }
+    set((state) => ({
+      transactions: state.transactions.map((t) =>
+        t.id === transactionId
+          ? {
+              ...t,
+              excludeFromBudget: exclude,
+              ...(exclude ? { categoryId: null, category: 'Uncategorized', categoryEmoji: '' } : {}),
+            }
+          : t
+      ),
+    }))
+    return { success: true }
+  },
+
+  /**
+   * Mark two existing transactions as the two sides of one transfer: money out
+   * of `fromId`'s account and into `toId`'s. Clears their categories.
+   */
+  linkAsTransfer: async (fromId, toId) => {
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+    const from = get().transactions.find((t) => t.id === fromId)
+    const to = get().transactions.find((t) => t.id === toId)
+    if (!from || !to) return { success: false, error: 'Transaction not found' }
+    const now = new Date().toISOString()
+    const rows = [
+      [from, { transfer_account_id: to.accountId, transfer_transaction_id: to.id }],
+      [to, { transfer_account_id: from.accountId, transfer_transaction_id: from.id }],
+    ]
+    for (const [txn, link] of rows) {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ ...link, category_id: null, updated_at: now })
+        .eq('id', txn.id)
+      if (error) return { success: false, error: error.message }
+    }
+    set((state) => ({
+      transactions: state.transactions.map((t) => {
+        if (t.id === from.id) {
+          return { ...t, transferAccountId: to.accountId, transferTransactionId: to.id, categoryId: null, category: 'Uncategorized', categoryEmoji: '' }
+        }
+        if (t.id === to.id) {
+          return { ...t, transferAccountId: from.accountId, transferTransactionId: from.id, categoryId: null, category: 'Uncategorized', categoryEmoji: '' }
+        }
+        return t
+      }),
+    }))
+    return { success: true }
   },
 
   getUncategorizedTransactions: () => {
