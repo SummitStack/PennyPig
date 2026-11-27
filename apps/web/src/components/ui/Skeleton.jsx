@@ -1,3 +1,5 @@
+import { LogoMark } from './Logo'
+
 /** Grey placeholder shapes shown while a page's data is still loading. */
 export function SkeletonBlock({ className = '' }) {
   return <div className={`animate-pulse rounded-lg bg-surface-container ${className}`} aria-hidden="true" />
@@ -14,10 +16,10 @@ export function PageSkeleton() {
         <SkeletonBlock className="h-3 w-24" />
         <SkeletonBlock className="h-8 w-56" />
       </div>
-      <SkeletonBlock className="h-28 w-full rounded-2xl" />
+      <SkeletonBlock className="h-28 w-full rounded-xl" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <SkeletonBlock key={i} className="h-24 rounded-2xl" />
+          <SkeletonBlock key={i} className="h-24 rounded-xl" />
         ))}
       </div>
       <div className="card flex flex-col gap-4 p-5 sm:p-6">
@@ -39,14 +41,7 @@ export function SplashScreen() {
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-4 bg-surface" role="status" data-testid="splash">
       <div className="animate-pulse">
-        <span
-          className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary to-secondary/70 text-[32px] text-white shadow-card"
-          aria-hidden="true"
-        >
-          <span className="material-symbols-rounded" style={{ fontVariationSettings: "'FILL' 1, 'wght' 600" }}>
-            savings
-          </span>
-        </span>
+        <LogoMark size="xl" />
       </div>
       <span className="sr-only">Loading</span>
     </div>

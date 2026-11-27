@@ -415,8 +415,7 @@ export default function TransactionsPage() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="eyebrow">Activity</p>
-            <h1 className="mt-1 font-display text-headline-lg text-on-surface">Transactions</h1>
+            <h1 className="font-display text-headline-lg text-on-surface">Transactions</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button

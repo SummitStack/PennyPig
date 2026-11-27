@@ -31,12 +31,6 @@ import Icon from '../ui/Icon'
 import { listActivityLines } from '../../lib/budgetMath'
 import { formatMonthLabel, money } from '../../lib/money'
 
-function statusDot(available) {
-  if (available < 0) return 'bg-status-error'
-  if (available === 0) return 'bg-outline-variant'
-  return 'bg-status-success'
-}
-
 function statusText(available) {
   if (available < 0) return 'text-status-error'
   if (available === 0) return 'text-on-surface-variant'
@@ -119,7 +113,7 @@ function MoneyCell({
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={() => onSave(categoryId)}
         onKeyDown={(e) => e.key === 'Enter' && onSave(categoryId)}
-        className="w-20 rounded border border-cool-blue bg-surface-base px-1 py-0.5 text-center text-body-sm font-medium text-on-surface outline-none"
+        className="w-20 rounded border border-primary bg-surface-base px-1 py-0.5 text-center text-body-sm font-medium text-on-surface outline-none"
       />
     )
   }
@@ -225,13 +219,13 @@ function CategoryRowContent({
   const pad = depth === 0 ? '' : depth === 1 ? 'pl-2 sm:pl-5' : 'pl-4 sm:pl-10'
 
   const rowBg = isParent
-    ? 'mt-2 bg-surface-container-high/70'
+    ? 'mt-3 bg-surface-container'
     : isGroup
-      ? 'bg-surface-container/50'
-      : 'hover:bg-surface-container/50'
+      ? 'bg-surface-container/40'
+      : 'hover:bg-surface-container/60'
 
   const nameClass = isParent
-    ? 'font-display font-bold uppercase tracking-[0.06em] text-on-surface'
+    ? 'font-semibold text-on-surface'
     : isGroup
       ? 'font-semibold text-on-surface'
       : 'font-medium text-on-surface'
@@ -262,7 +256,7 @@ function CategoryRowContent({
     <div
       className={`grid grid-cols-12 items-center rounded-md py-1.5 ${rowBg} ${
         isOverlay
-          ? 'rounded-lg border border-border-hairline bg-surface-container-high shadow-xl ring-1 ring-cool-blue/40'
+          ? 'rounded-lg border border-border-hairline bg-surface-container-high shadow-xl ring-1 ring-primary/40'
           : ''
       }`}
     >
@@ -297,9 +291,11 @@ function CategoryRowContent({
           <span className="w-6" />
         )}
 
-        <span className="text-sm leading-none" aria-hidden>
-          {category.emoji || '📁'}
-        </span>
+        {!isParent && category.emoji && (
+          <span className="w-5 text-center text-[13px] leading-none" aria-hidden>
+            {category.emoji}
+          </span>
+        )}
 
         {canEditName ? (
           <button
@@ -389,7 +385,7 @@ function CategoryRowContent({
           <button
             type="button"
             onClick={() => onOpenActivity?.(category)}
-            className="rounded px-1.5 py-0.5 font-semibold tabular-nums text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+            className="rounded px-1.5 py-0.5 tabular-nums text-on-surface-variant underline decoration-outline-variant decoration-dotted underline-offset-4 hover:bg-surface-container-high hover:text-on-surface"
             title="See what makes up this activity"
           >
             {formatSignedDollars(activity)}
@@ -408,21 +404,24 @@ function CategoryRowContent({
           <button
             type="button"
             onClick={() => onCover?.(category)}
-            className={`rounded px-1.5 py-0.5 text-label-sm font-semibold tabular-nums ${
-              creditOnly ? 'text-status-warning hover:bg-status-warning/10' : 'text-status-error hover:bg-status-error/10'
+            className={`rounded-full px-2 py-0.5 text-body-sm font-medium tabular-nums ${
+              creditOnly
+                ? 'bg-status-warning/10 text-status-warning hover:bg-status-warning/15'
+                : 'bg-status-error/10 text-status-error hover:bg-status-error/15'
             }`}
             title={`${availableTitle}. Cover overspending.`}
           >
             {formatSignedDollars(available)}
           </button>
         ) : (
-          <span className="tabular-nums">{formatSignedDollars(available)}</span>
+          <span
+            className={`tabular-nums ${
+              !isGroup && available > 0.005 ? 'rounded-full bg-primary/10 px-2 py-0.5' : 'px-2 py-0.5'
+            }`}
+          >
+            {formatSignedDollars(available)}
+          </span>
         )}
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${creditOnly ? 'bg-status-warning' : statusDot(available)} ${
-            available < 0 && !creditOnly ? 'animate-pulse' : ''
-          }`}
-        />
       </div>
     </div>
   )
@@ -886,7 +885,7 @@ export default function BudgetAllocationTable() {
       {flash && <p className="mb-2 text-label-md text-sage-accent">{flash}</p>}
 
       {manageMode && (
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cool-blue/30 bg-cool-blue/10 px-2 py-1.5">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2 py-1.5">
           <p className="text-label-md text-on-surface">
             Editing categories — drag groups and categories to reorder. Parents (Needs, Wants,
             Savings Goals, Other) stay fixed.
@@ -966,7 +965,7 @@ export default function BudgetAllocationTable() {
       {panel && manageMode && (
         <div className="mb-2 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-body-md font-bold text-on-surface">
+            <h3 className="text-body-md font-semibold text-on-surface">
               {panel.mode === 'add'
                 ? panel.addRole === 'group'
                   ? 'Add group'
@@ -1017,7 +1016,7 @@ export default function BudgetAllocationTable() {
         </div>
       )}
 
-      <div className="grid grid-cols-12 items-center border-b border-border-hairline pb-2 text-label-sm font-semibold uppercase tracking-[0.06em] text-on-surface-variant">
+      <div className="grid grid-cols-12 items-center border-b border-border-hairline pb-2 text-label-md font-medium text-on-surface-variant">
         <div className="col-span-6 sm:col-span-6 flex items-center gap-1">
           <span>Category</span>
           <button
@@ -1025,7 +1024,7 @@ export default function BudgetAllocationTable() {
             onClick={() => (manageMode ? handleSave() : enterManageMode())}
             className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
               manageMode
-                ? 'bg-cool-blue/20 text-cool-blue'
+                ? 'bg-primary/15 text-primary'
                 : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
             }`}
             title={manageMode ? 'Save category changes' : 'Edit categories'}
@@ -1044,7 +1043,7 @@ export default function BudgetAllocationTable() {
 
       {/* Income: expected vs received so leftovers can be assigned below */}
       <div className="mb-1 flex flex-col border-b border-border-hairline pb-1">
-        <div className="grid grid-cols-12 items-center rounded-md bg-primary/10 py-1.5">
+        <div className="grid grid-cols-12 items-center rounded-md bg-surface-container py-1.5">
           <div className="col-span-6 flex items-center gap-1 pl-0 sm:col-span-6">
             <button
               type="button"
@@ -1055,10 +1054,7 @@ export default function BudgetAllocationTable() {
             >
               <Icon name={incomeOpen ? 'expand_more' : 'chevron_right'} className="text-[18px]" />
             </button>
-            <span className="text-sm" aria-hidden>
-              💰
-            </span>
-            <span className="font-headline-sm font-bold uppercase tracking-wider text-on-surface">
+            <span className="font-semibold text-on-surface">
               Income
             </span>
             <span className="ml-2 hidden text-label-sm font-normal normal-case tracking-normal text-on-surface-variant sm:inline">
@@ -1072,12 +1068,16 @@ export default function BudgetAllocationTable() {
             {money(incomeTotals.received)}
           </div>
           <div
-            className={`col-span-3 sm:col-span-2 text-right text-body-sm font-medium ${
-              incomeTotals.extra >= 0 ? 'text-status-success' : 'text-status-error'
+            className={`col-span-3 sm:col-span-2 pr-2 text-right text-body-sm font-medium ${
+              Math.abs(incomeTotals.extra) < 0.005
+                ? 'text-on-surface-variant'
+                : incomeTotals.extra > 0
+                  ? 'text-status-success'
+                  : 'text-status-error'
             }`}
             title="Received − expected"
           >
-            {incomeTotals.extra < 0 ? '-' : '+'}
+            {Math.abs(incomeTotals.extra) < 0.005 ? '' : incomeTotals.extra < 0 ? '\u2212' : '+'}
             {money(Math.abs(incomeTotals.extra))}
           </div>
         </div>
@@ -1131,12 +1131,12 @@ export default function BudgetAllocationTable() {
                 {money(received)}
               </div>
               <div
-                className={`col-span-3 sm:col-span-2 text-right text-body-sm font-medium ${
-                  extra >= 0 ? 'text-status-success' : 'text-status-error'
+                className={`col-span-3 sm:col-span-2 pr-2 text-right text-body-sm ${
+                  Math.abs(extra) < 0.005 ? 'text-on-surface-variant' : extra > 0 ? 'font-medium text-status-success' : 'font-medium text-status-error'
                 }`}
                 title="Received − expected (extra to assign via Ready to Assign)"
               >
-                {extra < 0 ? '-' : '+'}{money(Math.abs(extra))}
+                {Math.abs(extra) < 0.005 ? '' : extra < 0 ? '\u2212' : '+'}{money(Math.abs(extra))}
               </div>
             </div>
           )
@@ -1177,7 +1177,7 @@ export default function BudgetAllocationTable() {
         </DragOverlay>
       </DndContext>
 
-      <div className="mt-2 grid grid-cols-12 items-center border-t border-border-hairline pt-2 font-bold text-on-surface">
+      <div className="mt-2 grid grid-cols-12 items-center border-t border-border-hairline pt-2 font-semibold text-on-surface">
         <div className="col-span-6 sm:col-span-6 text-body-md">Totals</div>
         <div className="col-span-3 sm:col-span-2 text-center text-body-md">{money(totalBudgeted)}</div>
         <div className="hidden sm:block sm:col-span-2 text-center text-body-md text-on-surface-variant">

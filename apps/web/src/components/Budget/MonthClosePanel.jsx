@@ -100,7 +100,7 @@ export default function MonthClosePanel() {
     <div className="card flex flex-col gap-space-sm p-4 sm:p-5">
       <div className="flex items-start justify-between gap-space-sm border-b border-border-hairline pb-1.5">
         <div>
-          <div className="font-headline-sm font-bold text-on-surface">Month close</div>
+          <div className="font-headline-sm font-semibold text-on-surface">Month close</div>
           <div className="text-label-sm text-on-surface-variant">
             {doneCount}/{checklist.length} checklist items ready
           </div>
@@ -172,7 +172,7 @@ export default function MonthClosePanel() {
           <button
             type="button"
             onClick={handleUnmark}
-            className="text-label-sm text-cool-blue hover:underline"
+            className="text-label-sm text-primary hover:underline"
           >
             Unmark this month as closed
           </button>

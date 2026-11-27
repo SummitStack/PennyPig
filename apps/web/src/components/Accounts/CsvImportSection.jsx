@@ -122,7 +122,7 @@ export default function CsvImportSection() {
   return (
     <section className="card p-5 sm:p-6" id="csv-import">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cool-blue/10 text-cool-blue">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant">
           <Icon name="upload_file" className="text-[20px]" />
         </span>
         <div>

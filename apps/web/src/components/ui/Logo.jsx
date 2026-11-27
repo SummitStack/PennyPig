@@ -1,20 +1,25 @@
-/** PennyPig wordmark: a soft pig-pink coin badge plus the name. */
+import { PiggyBank } from 'lucide-react'
+
+/** The PennyPig mark: a flat tile in the brand green with an outline pig. */
+export function LogoMark({ size = 'md' }) {
+  const box =
+    size === 'xl' ? 'h-12 w-12 rounded-xl text-[26px]' : size === 'lg' ? 'h-9 w-9 rounded-[10px] text-[20px]' : 'h-7 w-7 rounded-lg text-[16px]'
+  return (
+    <span className={`flex ${box} shrink-0 items-center justify-center bg-primary text-on-primary`} aria-hidden="true">
+      <PiggyBank size="1em" strokeWidth={2} />
+    </span>
+  )
+}
+
+/** PennyPig wordmark: the mark plus the name. */
 export default function Logo({ size = 'md', showName = true }) {
-  const box = size === 'lg' ? 'h-10 w-10 text-[24px]' : 'h-8 w-8 text-[20px]'
   return (
     <span className="flex items-center gap-2.5">
-      <span
-        className={`flex ${box} items-center justify-center rounded-xl bg-gradient-to-br from-secondary to-secondary/70 text-white shadow-card`}
-        aria-hidden="true"
-      >
-        <span className="material-symbols-rounded" style={{ fontVariationSettings: "'FILL' 1, 'wght' 600" }}>
-          savings
-        </span>
-      </span>
+      <LogoMark size={size} />
       {showName && (
         <span
-          className={`font-display font-extrabold tracking-tight text-on-surface ${
-            size === 'lg' ? 'text-[26px]' : 'text-[18px]'
+          className={`font-display font-semibold tracking-[-0.02em] text-on-surface ${
+            size === 'lg' ? 'text-[22px]' : 'text-[17px]'
           }`}
         >
           PennyPig

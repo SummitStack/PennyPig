@@ -60,7 +60,7 @@ export default function MoveMoneyModal({
         aria-labelledby="move-money-title"
       >
         <div className="mb-space-sm flex items-center justify-between">
-          <h3 id="move-money-title" className="text-body-md font-bold text-on-surface">
+          <h3 id="move-money-title" className="text-body-md font-semibold text-on-surface">
             {isCover ? 'Cover overspending' : 'Move money'}
           </h3>
           <button

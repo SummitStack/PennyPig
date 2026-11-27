@@ -13,8 +13,7 @@ export default function SettingsPage() {
     <MainLayout>
       <div className="max-w-3xl space-y-5">
         <div>
-          <p className="eyebrow">You</p>
-          <h1 className="mt-1 font-display text-headline-lg text-on-surface">Settings</h1>
+          <h1 className="font-display text-headline-lg text-on-surface">Settings</h1>
         </div>
 
         <SettingsSection icon="palette" title="Appearance">
@@ -80,7 +79,7 @@ function SettingsSection({ icon, title, children }) {
   return (
     <section className="card p-5 sm:p-6">
       <div className="mb-3 flex items-center gap-2.5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
           <Icon name={icon} className="text-[18px]" />
         </span>
         <h2 className="font-display text-headline-sm text-on-surface">{title}</h2>
