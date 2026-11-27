@@ -56,6 +56,16 @@ function monthBounds(month) {
 /**
  * Spending by leaf expense category in a date range (or single month).
  */
+// Card payments move money to a card; the spending already counted where
+// the card was used, so payment categories stay out of spending reports.
+function cardPaymentIds(categories) {
+  return new Set(categories.filter((c) => c.isCcPayment).map((c) => c.id))
+}
+
+function spendingLeaves(categories) {
+  return getLeafCategories(categories, 'expense').filter((c) => !c.isCcPayment)
+}
+
 export function spendingByCategory({
   transactions,
   categories,
@@ -72,7 +82,7 @@ export function spendingByCategory({
     to = b.to
   }
 
-  const leaves = getLeafCategories(categories, 'expense')
+  const leaves = spendingLeaves(categories)
   const rows = []
 
   for (const leaf of leaves) {
@@ -145,17 +155,20 @@ export function incomeVsExpense({
   const incomeIds = new Set(
     categories.filter((c) => c.type === 'income').map((c) => c.id)
   )
+  const payIds = cardPaymentIds(categories)
   let income = 0
   let expense = 0
 
   for (const txn of transactions) {
     if (txn.excludeFromBudget) continue
+    if (!txn.isSplit && payIds.has(txn.categoryId)) continue
     if (txn.cleared === false) continue
     if (txn.transferAccountId && !txn.categoryId && !txn.isSplit) continue
     if (!inDateRange(txn, dateFrom, dateTo)) continue
 
     if (txn.isSplit && splitsByTxn[txn.id]) {
       for (const split of splitsByTxn[txn.id]) {
+        if (payIds.has(split.categoryId)) continue
         const cat = categories.find((c) => c.id === split.categoryId)
         const amt = Math.abs(Number(split.amount) || 0)
         if (cat?.type === 'income') income += amt
@@ -191,7 +204,7 @@ export function monthlyTrend({
 
   return months.map((month) => {
     const income = incomeForMonth(transactions, categories, month)
-    const leaves = getLeafCategories(categories, 'expense')
+    const leaves = spendingLeaves(categories)
     const expense = leaves.reduce(
       (sum, leaf) =>
         sum +

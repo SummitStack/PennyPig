@@ -20,19 +20,25 @@ function isActive(pathname, item) {
     : pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
 
-function formatSyncLabel(accounts) {
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Last bank sync, and whether it's over a day old. */
+function syncStatus(accounts) {
   const times = accounts
     .map((a) => a.lastSynced)
     .filter(Boolean)
     .map((d) => new Date(d).getTime())
   if (times.length === 0) return null
   const latest = new Date(Math.max(...times))
-  return latest.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+  return {
+    label: latest.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }),
+    stale: Date.now() - latest.getTime() > DAY_MS,
+  }
 }
 
 /** SPA nav that won't fight Next.js full document loads on <a href>. */
@@ -167,7 +173,9 @@ function UserMenu({ placement = 'down' }) {
 export default function MainLayout({ children }) {
   const location = useLocation()
   const accounts = useAccountStore((state) => state.linkedAccounts)
-  const syncLabel = formatSyncLabel(accounts)
+  const bankIssues = useAccountStore((state) => state.bankIssues)
+  const sync = syncStatus(accounts)
+  const needsAttention = Boolean(sync?.stale) || (bankIssues || []).some((b) => b.needsReconnect)
   const settingsActive = location.pathname.startsWith('/settings')
 
   return (
@@ -201,12 +209,26 @@ export default function MainLayout({ children }) {
             )
           })}
         </nav>
-        {syncLabel && (
-          <p className="mb-3 flex items-center gap-1.5 px-2.5 text-label-md text-on-surface-variant">
-            <Icon name="sync" className="text-[14px]" />
-            Synced {syncLabel}
-          </p>
-        )}
+        {sync &&
+          (needsAttention ? (
+            <AppNavLink
+              to="/accounts"
+              className="mb-3 flex items-center gap-1.5 rounded-lg bg-status-warning/10 px-2.5 py-1.5 text-label-md text-status-warning hover:bg-status-warning/15"
+              title="Your banks haven't synced in over a day. Open Accounts to sync or reconnect."
+              data-testid="sync-stale"
+            >
+              <Icon name="sync_problem" className="text-[14px]" />
+              <span>
+                Synced {sync.label}
+                <span className="block font-semibold">Reconnect</span>
+              </span>
+            </AppNavLink>
+          ) : (
+            <p className="mb-3 flex items-center gap-1.5 px-2.5 text-label-md text-on-surface-variant">
+              <Icon name="sync" className="text-[14px]" />
+              Synced {sync.label}
+            </p>
+          ))}
         <div className="border-t border-border-hairline pt-3">
           <UserMenu placement="up" />
         </div>

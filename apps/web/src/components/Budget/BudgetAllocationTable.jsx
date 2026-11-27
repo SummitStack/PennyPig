@@ -203,6 +203,7 @@ function CategoryRowContent({
   available,
   accountBalance,
   carryover,
+  creditOverspend = 0,
   underfunded,
   hasTarget,
   editingCell,
@@ -236,6 +237,17 @@ function CategoryRowContent({
       : 'font-medium text-on-surface'
 
   const canEditName = manageMode && !isOverlay && !isParent
+  // Overspent only on a credit card: it becomes card debt rather than coming
+  // out of next month, so it shows amber instead of red.
+  const creditOnly = available < 0 && creditOverspend > 0 && creditOverspend >= -available - 0.005
+  const availableTitle = [
+    'Left in this category this month',
+    carryover > 0 ? `${money(carryover)} rolled in from last month` : null,
+    creditOverspend > 0 ? `${money(creditOverspend)} overspent on a credit card` : null,
+    accountBalance != null && category.isCcPayment ? `Card balance ${money(accountBalance)}` : null,
+  ]
+    .filter(Boolean)
+    .join('. ')
   const canDrag = manageMode && !isParent
   const canAddChild = manageMode && isGroup && !isOverlay && !isParent
 
@@ -247,7 +259,7 @@ function CategoryRowContent({
           : ''
       }`}
     >
-      <div className={`col-span-6 sm:col-span-4 flex min-w-0 items-center gap-0.5 ${pad}`}>
+      <div className={`col-span-6 sm:col-span-6 flex min-w-0 items-center gap-0.5 ${pad}`}>
         {canDrag ? (
           <button
             type="button"
@@ -362,22 +374,19 @@ function CategoryRowContent({
         )}
       </div>
       <div
-        className={`col-span-3 sm:col-span-2 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${statusText(
-          available
-        )}`}
-        title="Left in this category this month"
+        className={`col-span-3 sm:col-span-2 flex items-center justify-end gap-1 text-right text-body-sm font-medium ${
+          creditOnly ? 'text-status-warning' : statusText(available)
+        }`}
+        title={availableTitle}
       >
-        {carryover > 0 && !isOverlay && (
-          <span className="text-label-sm text-on-surface-variant" title="Rolled in from prior month">
-            +{money(carryover)}
-          </span>
-        )}
         {!isGroup && !manageMode && !isOverlay && available < 0 ? (
           <button
             type="button"
             onClick={() => onCover?.(category)}
-            className="rounded px-1.5 py-0.5 text-label-sm font-semibold tabular-nums text-status-error hover:bg-status-error/10"
-            title="Cover overspending"
+            className={`rounded px-1.5 py-0.5 text-label-sm font-semibold tabular-nums ${
+              creditOnly ? 'text-status-warning hover:bg-status-warning/10' : 'text-status-error hover:bg-status-error/10'
+            }`}
+            title={`${availableTitle}. Cover overspending.`}
           >
             {formatSignedDollars(available)}
           </button>
@@ -385,16 +394,10 @@ function CategoryRowContent({
           <span className="tabular-nums">{formatSignedDollars(available)}</span>
         )}
         <span
-          className={`h-1.5 w-1.5 rounded-full ${statusDot(available)} ${
-            available < 0 ? 'animate-pulse' : ''
+          className={`h-1.5 w-1.5 rounded-full ${creditOnly ? 'bg-status-warning' : statusDot(available)} ${
+            available < 0 && !creditOnly ? 'animate-pulse' : ''
           }`}
         />
-      </div>
-      <div
-        className="hidden sm:block sm:col-span-2 text-right text-body-sm tabular-nums text-on-surface-variant"
-        title="Account / savings balance (rollover for bills)"
-      >
-        {accountBalance == null ? '—' : formatSignedDollars(accountBalance)}
       </div>
     </div>
   )
@@ -446,6 +449,7 @@ export default function BudgetAllocationTable() {
   const getIncomeAvailableFor = useBudgetStore((state) => state.getIncomeAvailableFor)
   const getAvailableFor = useBudgetStore((state) => state.getAvailableFor)
   const getCarryoverFor = useBudgetStore((state) => state.getCarryoverFor)
+  const getCreditOverspendFor = useBudgetStore((state) => state.getCreditOverspendFor)
   const getUnderfundedFor = useBudgetStore((state) => state.getUnderfundedFor)
   const getTargetFor = useBudgetStore((state) => state.getTargetFor)
   const getTotalBudgeted = useBudgetStore((state) => state.getTotalBudgeted)
@@ -471,6 +475,10 @@ export default function BudgetAllocationTable() {
   const [saving, setSaving] = useState(false)
   const [toolbarBusy, setToolbarBusy] = useState(false)
   const [targetCategory, setTargetCategory] = useState(null)
+  // Income rows take the whole first screen on a phone, so start them folded there.
+  const [incomeOpen, setIncomeOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 640px)').matches
+  )
   const [moveModal, setMoveModal] = useState(null)
   const [activityCategory, setActivityCategory] = useState(null)
 
@@ -803,20 +811,6 @@ export default function BudgetAllocationTable() {
   const totalBudgeted = getTotalBudgeted()
   const totalActivity = getTotalActivity()
   const totalAvailable = getTotalAvailable()
-  const totalAccountBalance = useMemo(() => {
-    const roots = categories.filter((c) => c.type === 'expense' && !c.parentId)
-    return roots.reduce((sum, cat) => {
-      const bal = categoryAccountBalance({
-        category: cat,
-        categories,
-        accounts,
-        getAvailableFor,
-        getCarryoverFor,
-      })
-      return sum + (bal == null ? 0 : bal)
-    }, 0)
-  }, [categories, accounts, getAvailableFor, getCarryoverFor])
-
   const rowProps = (row) => ({
     category: row.category,
     depth: row.depth,
@@ -829,6 +823,7 @@ export default function BudgetAllocationTable() {
     available: draftAvailableFor(row.id),
     accountBalance: draftAccountBalanceFor(row.id),
     carryover: draftCarryoverFor(row.id),
+    creditOverspend: row.isGroup ? 0 : getCreditOverspendFor(row.id),
     underfunded: row.isGroup ? 0 : getUnderfundedFor(row.id),
     hasTarget: Boolean(getTargetFor(row.id)),
     editingCell,
@@ -998,7 +993,7 @@ export default function BudgetAllocationTable() {
       )}
 
       <div className="grid grid-cols-12 items-center border-b border-border-hairline pb-2 text-label-sm font-semibold uppercase tracking-[0.06em] text-on-surface-variant">
-        <div className="col-span-6 sm:col-span-4 flex items-center gap-1">
+        <div className="col-span-6 sm:col-span-6 flex items-center gap-1">
           <span>Category</span>
           <button
             type="button"
@@ -1020,15 +1015,21 @@ export default function BudgetAllocationTable() {
         <div className="col-span-3 sm:col-span-2 text-right" title="Left in category this month">
           Available
         </div>
-        <div className="hidden sm:block sm:col-span-2 text-right" title="Account / savings balance">
-          Balance
-        </div>
       </div>
 
       {/* Income: expected vs received so leftovers can be assigned below */}
       <div className="mb-1 flex flex-col border-b border-border-hairline pb-1">
         <div className="grid grid-cols-12 items-center rounded-md bg-primary/10 py-1.5">
-          <div className="col-span-6 flex items-center gap-1 pl-2 sm:col-span-4 sm:pl-6">
+          <div className="col-span-6 flex items-center gap-1 pl-0 sm:col-span-6">
+            <button
+              type="button"
+              onClick={() => setIncomeOpen((v) => !v)}
+              className="flex h-6 w-6 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              aria-label={incomeOpen ? 'Collapse income' : 'Expand income'}
+              aria-expanded={incomeOpen}
+            >
+              <Icon name={incomeOpen ? 'expand_more' : 'chevron_right'} className="text-[18px]" />
+            </button>
             <span className="text-sm" aria-hidden>
               💰
             </span>
@@ -1054,14 +1055,13 @@ export default function BudgetAllocationTable() {
             {incomeTotals.extra < 0 ? '-' : '+'}
             {money(Math.abs(incomeTotals.extra))}
           </div>
-          <div className="hidden sm:block sm:col-span-2 text-right text-body-sm text-on-surface-variant">—</div>
         </div>
-        {incomeLeaves.length === 0 && (
+        {incomeOpen && incomeLeaves.length === 0 && (
           <p className="py-2 pl-12 text-body-sm text-on-surface-variant">
             No income categories yet. Use Edit → Add category → Group: Income.
           </p>
         )}
-        {incomeLeaves.map((cat) => {
+        {incomeOpen && incomeLeaves.map((cat) => {
           const expected = getBudgetedFor(cat.id)
           const received = getIncomeActivityFor(cat.id)
           const extra = getIncomeAvailableFor(cat.id)
@@ -1070,7 +1070,7 @@ export default function BudgetAllocationTable() {
               key={`income-${cat.id}`}
               className="grid grid-cols-12 items-center py-1 pl-0"
             >
-              <div className="col-span-6 flex min-w-0 items-center gap-0.5 pl-4 sm:col-span-4 sm:pl-10">
+              <div className="col-span-6 flex min-w-0 items-center gap-0.5 pl-4 sm:col-span-6 sm:pl-10">
                 <span className="text-sm leading-none" aria-hidden>
                   {cat.emoji || '💰'}
                 </span>
@@ -1113,9 +1113,6 @@ export default function BudgetAllocationTable() {
               >
                 {extra < 0 ? '-' : '+'}{money(Math.abs(extra))}
               </div>
-              <div className="hidden sm:block sm:col-span-2 text-right text-body-sm text-on-surface-variant">
-                —
-              </div>
             </div>
           )
         })}
@@ -1156,7 +1153,7 @@ export default function BudgetAllocationTable() {
       </DndContext>
 
       <div className="mt-2 grid grid-cols-12 items-center border-t border-border-hairline pt-2 font-bold text-on-surface">
-        <div className="col-span-6 sm:col-span-4 text-body-md">Totals</div>
+        <div className="col-span-6 sm:col-span-6 text-body-md">Totals</div>
         <div className="col-span-3 sm:col-span-2 text-center text-body-md">{money(totalBudgeted)}</div>
         <div className="hidden sm:block sm:col-span-2 text-center text-body-md text-on-surface-variant">
           {money(totalActivity)}
@@ -1167,9 +1164,6 @@ export default function BudgetAllocationTable() {
           }`}
         >
           {formatSignedDollars(totalAvailable)}
-        </div>
-        <div className="hidden sm:block sm:col-span-2 text-right text-body-md text-on-surface-variant">
-          {formatSignedDollars(totalAccountBalance)}
         </div>
       </div>
 

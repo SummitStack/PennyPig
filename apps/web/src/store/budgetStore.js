@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useTransactionStore } from './transactionStore'
 import { getLeafCategories, isParentCategory, isUnderSavingsGoals } from '../lib/categories'
 import {
+  cardLinks,
   computeAvailability,
   computeReadyToAssign,
   incomeForMonth,
@@ -12,6 +13,18 @@ import {
   targetNeededForMonth,
   underfundedAmount,
 } from '../lib/budgetMath'
+import { gigIncomeForMonth } from '../lib/gigIncome'
+
+function mapTargetExtras(row) {
+  return {
+    targetType: row.target_type,
+    amount: Number(row.amount) || 0,
+    targetDate: row.target_date,
+    percent: row.percent != null ? Number(row.percent) : null,
+    percentOf: row.percent_of || null,
+    repeatMonths: row.repeat_months != null ? Number(row.repeat_months) : null,
+  }
+}
 import { shiftMonth, currentMonthKey } from '../lib/money'
 
 const currentMonth = currentMonthKey()
@@ -134,9 +147,7 @@ export const useBudgetStore = create((set, get) => ({
         targets[row.category_id] = {
           id: row.id,
           categoryId: row.category_id,
-          targetType: row.target_type,
-          amount: Number(row.amount) || 0,
-          targetDate: row.target_date,
+          ...mapTargetExtras(row),
         }
       }
 
@@ -245,7 +256,7 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   getActivityFor: (categoryId, month = get().currentMonth) => {
-    const { transactions, categories, splitsByTxn } = get()._context()
+    const { transactions, categories, splitsByTxn, accounts: ctxAccounts } = get()._context()
     const cat = categories.find((c) => c.id === categoryId)
     const children = categories.filter((c) => c.parentId === categoryId)
     // Direct spend on this id (including mis-tagged group rows) + children
@@ -256,6 +267,12 @@ export const useBudgetStore = create((set, get) => ({
       splitsByTxn,
       categories,
     })
+
+    // Card payment categories: funded card spending in, payments out.
+    if (children.length === 0 && cardLinks(categories, ctxAccounts).accountByPayCat[categoryId]) {
+      const { activity } = computeAvailability({ ...get()._context(), endMonth: month })
+      return Number(activity[month]?.[categoryId] || 0)
+    }
 
     // Savings goals: Activity = budgeted funding − outflows (net into the goal)
     if (isUnderSavingsGoals(categories, cat) && children.length === 0) {
@@ -318,6 +335,12 @@ export const useBudgetStore = create((set, get) => ({
       )
     }
     return Number(carryover[month]?.[categoryId] || 0)
+  },
+
+  /** Overspending in a category that happened on a credit card this month. */
+  getCreditOverspendFor: (categoryId, month = get().currentMonth) => {
+    const { creditOverspend } = computeAvailability({ ...get()._context(), endMonth: month })
+    return Number(creditOverspend[month]?.[categoryId] || 0)
   },
 
   getAvailableFor: (categoryId, month = get().currentMonth) => {
@@ -424,7 +447,10 @@ export const useBudgetStore = create((set, get) => ({
     return get().moveMoney(fromCategoryId, overspentCategoryId, -available)
   },
 
-  setTarget: async (categoryId, { targetType, amount, targetDate = null }) => {
+  setTarget: async (
+    categoryId,
+    { targetType, amount, targetDate = null, percent = null, percentOf = null, repeatMonths = null }
+  ) => {
     if (!supabase) return { success: false, error: 'Supabase not configured' }
     const {
       data: { user },
@@ -438,6 +464,15 @@ export const useBudgetStore = create((set, get) => ({
       amount: Number(amount) || 0,
       target_date: targetType === 'by_date' ? targetDate : null,
       updated_at: new Date().toISOString(),
+    }
+    // Round 6 columns: only sent when used, or when clearing an earlier value.
+    const prev = get().targets[categoryId]
+    if (targetType === 'percent_income' || prev?.percent != null) {
+      payload.percent = targetType === 'percent_income' ? Number(percent) || 0 : null
+      payload.percent_of = targetType === 'percent_income' ? (percentOf === 'gig' ? 'gig' : 'all') : null
+    }
+    if ((targetType === 'by_date' && repeatMonths) || prev?.repeatMonths) {
+      payload.repeat_months = targetType === 'by_date' && repeatMonths ? Number(repeatMonths) : null
     }
 
     const { data, error } = await supabase
@@ -454,9 +489,7 @@ export const useBudgetStore = create((set, get) => ({
         [categoryId]: {
           id: data.id,
           categoryId: data.category_id,
-          targetType: data.target_type,
-          amount: Number(data.amount) || 0,
-          targetDate: data.target_date,
+          ...mapTargetExtras(data),
         },
       },
     }))
@@ -488,6 +521,7 @@ export const useBudgetStore = create((set, get) => ({
       month,
       assigned: get().getBudgetedFor(categoryId, month),
       available: get().getAvailableFor(categoryId, month),
+      ...get()._incomeContext(month),
     })
   },
 
@@ -592,9 +626,18 @@ export const useBudgetStore = create((set, get) => ({
     })
   },
 
+  /** Income and gig income budgeted in a month, for percent-of-income targets. */
+  _incomeContext: (month = get().currentMonth) => {
+    const { transactions, categories, categoryRules } = useTransactionStore.getState()
+    return {
+      income: incomeForMonth(transactions, categories, month),
+      gigIncome: gigIncomeForMonth({ transactions, rules: categoryRules, month }),
+    }
+  },
+
   getTargetNeeded: (categoryId) => {
     const target = get().targets[categoryId]
-    return targetNeededForMonth(target, get().currentMonth)
+    return targetNeededForMonth(target, get().currentMonth, get()._incomeContext())
   },
 }))
 

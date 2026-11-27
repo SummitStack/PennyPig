@@ -19,11 +19,10 @@ function formatDate(d) {
 }
 
 const SORTABLE_COLUMNS = [
-  { key: 'account', label: 'Account', align: 'left', className: 'hidden md:table-cell w-28 px-3 py-2.5' },
   { key: 'date', label: 'Date', align: 'left', className: 'w-24 px-2 py-2.5' },
-  { key: 'payee', label: 'Payee', align: 'left', className: 'min-w-[8rem] px-2 py-2.5' },
-  { key: 'category', label: 'Category', align: 'left', className: 'w-40 px-2 py-2.5' },
-  { key: 'memo', label: 'Memo', align: 'left', className: 'hidden md:table-cell min-w-[5rem] px-2 py-2.5' },
+  { key: 'payee', label: 'Payee', align: 'left', className: 'min-w-[12rem] px-2 py-2.5' },
+  { key: 'category', label: 'Category', align: 'left', className: 'w-44 px-2 py-2.5' },
+  { key: 'memo', label: 'Memo', align: 'left', className: 'hidden xl:table-cell min-w-[6rem] px-2 py-2.5' },
   {
     key: 'outflow',
     label: 'Outflow',
@@ -37,16 +36,11 @@ const SORTABLE_COLUMNS = [
     className: 'w-24 px-2 py-2.5 text-right',
   },
   {
-    key: 'available',
-    label: 'Available',
-    align: 'right',
-    className: 'hidden lg:table-cell w-24 px-2 py-2.5 text-right',
-  },
-  {
     key: 'balance',
     label: 'Balance',
     align: 'right',
     className: 'hidden lg:table-cell w-28 px-2 py-2.5 text-right',
+    singleAccount: true,
   },
   {
     key: 'cleared',
@@ -55,6 +49,37 @@ const SORTABLE_COLUMNS = [
     className: 'w-24 px-2 py-2.5 text-center',
   },
 ]
+
+function isDebt(account) {
+  return account?.type === 'credit' || account?.type === 'loan'
+}
+
+/** Income the user can hold for next month: an inflow filed under income. */
+function canHoldForNextMonth(txn) {
+  return !txn.transferAccountId && !txn.isSplit && txn.categoryType === 'income' && Number(txn.amount) < 0
+}
+
+function NextMonthToggle({ txn, onToggle }) {
+  if (!canHoldForNextMonth(txn)) return null
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle(txn.id, !txn.forNextMonth)
+      }}
+      className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[11px] font-semibold leading-none transition-colors ${
+        txn.forNextMonth
+          ? 'border-primary/40 bg-primary/10 text-primary'
+          : 'border-border-hairline text-on-surface-variant hover:text-on-surface'
+      }`}
+      title={txn.forNextMonth ? 'Funds next month’s budget. Click to use it this month.' : 'Use this income next month'}
+      aria-pressed={Boolean(txn.forNextMonth)}
+    >
+      Next mo
+    </button>
+  )
+}
 
 function categorySortLabel(txn) {
   if (txn.transferAccountId) return 'Transfer'
@@ -83,10 +108,6 @@ function sortValue(txn, key, { getAvailableFor, runningBalances } = {}) {
       return !isInflow(txn.amount) ? absAmount(txn.amount) : null
     case 'inflow':
       return isInflow(txn.amount) ? absAmount(txn.amount) : null
-    case 'available': {
-      if (txn.transferAccountId || txn.isSplit || !txn.categoryId) return null
-      return getAvailableFor?.(txn.categoryId) ?? null
-    }
     case 'balance': {
       const bal = runningBalances?.[txn.id]
       return bal == null ? null : Number(bal)
@@ -139,7 +160,7 @@ function SortableTh({ column, sortKey, sortDir, onSort }) {
   )
 }
 
-function CategorySelect({
+export function CategorySelect({
   value,
   categories,
   onChange,
@@ -484,8 +505,10 @@ function TransactionRow({
   categories,
   selected,
   splitOpen,
-  categoryAvailable,
   accountBalance,
+  showAccount = true,
+  showBalance = false,
+  onSetForNextMonth,
   onToggleSelected,
   onToggleSplit,
   onCategorize,
@@ -501,6 +524,7 @@ function TransactionRow({
     ? accountsById[txn.transferAccountId]?.name || 'Account'
     : null
   const displayPayee = isTransfer ? `Transfer: ${otherAccountName}` : txn.payee
+  const columnCount = showBalance ? 9 : 8
 
   const outflow = !isInflow(txn.amount) ? absAmount(txn.amount) : null
   const inflowAmt = isInflow(txn.amount) ? absAmount(txn.amount) : null
@@ -523,22 +547,21 @@ function TransactionRow({
             className="accent-primary"
           />
         </td>
-        <td
-          className="hidden max-w-[7rem] truncate px-3 py-2 text-body-sm text-on-surface-variant md:table-cell"
-          title={txn.account}
-        >
-          {txn.account || '…'}
-        </td>
         <td className="whitespace-nowrap px-2 py-2 text-on-surface-variant">
           {formatDate(txn.date)}
         </td>
-        <td className="max-w-[14rem] px-1 py-2">
+        <td className="max-w-[20rem] px-1 py-2">
           <EditablePayee
             txn={txn}
             displayPayee={displayPayee}
             onSave={onRenamePayee}
             readOnly={isTransfer}
           />
+          {showAccount && (
+            <span className="ml-1 inline-block max-w-full truncate rounded bg-surface-container px-1.5 py-px text-[11px] text-on-surface-variant">
+              {txn.account || '…'}
+            </span>
+          )}
         </td>
         <td className="px-1 py-2">
           {isTransfer ? (
@@ -565,10 +588,11 @@ function TransactionRow({
                 categories={categories}
                 onChange={(id) => onCategorize(txn.id, id)}
               />
+              <NextMonthToggle txn={txn} onToggle={onSetForNextMonth} />
             </div>
           )}
         </td>
-        <td className="hidden px-1 py-2 md:table-cell">
+        <td className="hidden px-1 py-2 xl:table-cell">
           <EditableMemo txn={txn} onSave={onUpdateMemo} />
         </td>
         <td className="whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums text-on-surface">
@@ -577,20 +601,16 @@ function TransactionRow({
         <td className="whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums text-primary">
           {inflowAmt != null ? `+${formatMoney(inflowAmt)}` : ''}
         </td>
-        <td
-          className={`hidden whitespace-nowrap px-2 py-2 text-right tabular-nums lg:table-cell ${
-            categoryAvailable < 0 ? 'text-status-error' : 'text-on-surface-variant'
-          }`}
-          title="Left in category this month"
-        >
-          {categoryAvailable == null ? '' : money(categoryAvailable)}
-        </td>
-        <td
-          className="hidden whitespace-nowrap px-2 py-2 text-right tabular-nums text-on-surface-variant lg:table-cell"
-          title="Account balance after this transaction"
-        >
-          {accountBalance == null ? '' : money(accountBalance)}
-        </td>
+        {showBalance && (
+          <td
+            className={`hidden whitespace-nowrap px-2 py-2 text-right tabular-nums lg:table-cell ${
+              accountBalance < 0 ? 'text-status-error' : 'text-on-surface-variant'
+            }`}
+            title="Account balance after this transaction"
+          >
+            {accountBalance == null ? '' : money(accountBalance)}
+          </td>
+        )}
         <td className="px-2 py-2">
           <div className="flex items-center justify-center gap-0.5">
             {!isTransfer && (
@@ -646,7 +666,7 @@ function TransactionRow({
       </tr>
       {splitOpen && !isTransfer && (
         <tr className="border-b border-border-hairline/70 bg-surface-container/40">
-          <td colSpan={11} className="px-3 py-2">
+          <td colSpan={columnCount} className="px-3 py-2">
             <SplitEditor
               txn={txn}
               categories={categories}
@@ -663,6 +683,7 @@ function TransactionRow({
 
 /** Phone layout: one card per transaction instead of a sideways-scrolling table. */
 function TransactionCard({
+  onSetForNextMonth,
   txn,
   accountsById,
   categories,
@@ -717,6 +738,7 @@ function TransactionCard({
               Split: {(txn.splits || []).map((s) => s.category || 'Uncategorized').join(', ')}
             </span>
           ) : (
+            <>
             <CategorySelect
               value={txn.categoryId}
               categories={categories}
@@ -727,6 +749,8 @@ function TransactionCard({
                   : 'border-status-warning/40 bg-status-warning/10 text-on-surface'
               }`}
             />
+            <NextMonthToggle txn={txn} onToggle={onSetForNextMonth} />
+            </>
           )}
           {!isTransfer && (
             <button
@@ -797,6 +821,9 @@ export default function TransactionList() {
   const setSplits = useTransactionStore((state) => state.setSplits)
   const clearSplits = useTransactionStore((state) => state.clearSplits)
   const deleteTransaction = useTransactionStore((state) => state.deleteTransaction)
+  const setForNextMonth = useTransactionStore((state) => state.setForNextMonth)
+  // The running balance only makes sense inside one account.
+  const singleAccount = Boolean(filter.accountId)
   const getAvailableFor = useBudgetStore((state) => state.getAvailableFor)
   const budgets = useBudgetStore((state) => state.budgets)
   const currentMonth = useBudgetStore((state) => state.currentMonth)
@@ -825,7 +852,9 @@ export default function TransactionList() {
       rows.sort(
         (a, b) => new Date(b.date) - new Date(a.date) || String(b.id).localeCompare(String(a.id))
       )
-      let bal = Number(acct.balance) || 0
+      // Cards and loans count as money owed, as on the Accounts page.
+      const raw = Number(acct.balance) || 0
+      let bal = isDebt(acct) ? -Math.abs(raw) : raw
       for (const t of rows) {
         out[t.id] = bal
         bal += Number(t.amount) || 0
@@ -1029,6 +1058,7 @@ export default function TransactionList() {
         )}
         {filtered.map((txn) => (
           <TransactionCard
+            onSetForNextMonth={setForNextMonth}
             key={txn.id}
             txn={txn}
             accountsById={accountsById}
@@ -1043,7 +1073,7 @@ export default function TransactionList() {
       </ul>
 
     <div className="hidden overflow-x-auto md:block">
-      <table className="w-full min-w-[34rem] border-collapse text-body-sm md:min-w-[48rem] lg:min-w-[60rem]">
+      <table className="w-full min-w-[34rem] border-collapse text-body-sm md:min-w-[44rem]">
         <thead>
           <tr className="border-b border-border-hairline bg-surface-container-low text-left text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
             <th className="w-8 px-3 py-2.5">
@@ -1055,7 +1085,7 @@ export default function TransactionList() {
                 className="accent-primary"
               />
             </th>
-            {SORTABLE_COLUMNS.map((column) => (
+            {SORTABLE_COLUMNS.filter((c) => !c.singleAccount || singleAccount).map((column) => (
               <SortableTh
                 key={column.key}
                 column={column}
@@ -1070,7 +1100,7 @@ export default function TransactionList() {
           {filtered.length === 0 && (
             <tr>
               <td
-                colSpan={11}
+                colSpan={singleAccount ? 9 : 8}
                 className="px-4 py-12 text-center text-body-sm text-on-surface-variant"
               >
                 No transactions here yet. Add one, or import from your bank.
@@ -1078,10 +1108,6 @@ export default function TransactionList() {
             </tr>
           )}
           {filtered.map((txn) => {
-            const categoryAvailable =
-              txn.transferAccountId || txn.isSplit || !txn.categoryId
-                ? null
-                : getAvailableFor(txn.categoryId)
             const accountBalance = runningBalances[txn.id] ?? null
             return (
               <TransactionRow
@@ -1091,8 +1117,10 @@ export default function TransactionList() {
                 categories={categories}
                 selected={selectedIds.includes(txn.id)}
                 splitOpen={splitOpenId === txn.id}
-                categoryAvailable={categoryAvailable}
                 accountBalance={accountBalance}
+                showAccount={!singleAccount}
+                showBalance={singleAccount}
+                onSetForNextMonth={setForNextMonth}
                 onToggleSelected={toggleSelected}
                 onToggleSplit={toggleSplit}
                 onCategorize={handleCategorize}

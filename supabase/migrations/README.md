@@ -64,3 +64,9 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - Signed-in browsers could previously read their own Plaid access token through that RPC
 - Server routes read the token with `SUPABASE_SERVICE_ROLE_KEY` instead
 - Order: add `SUPABASE_SERVICE_ROLE_KEY` in Vercel, redeploy, then apply this
+
+## 20261129_round6_rules_gig_targets.sql
+- `payee_category_rules`: `match_type` ('exact' | 'contains'), `for_next_month`, `is_gig`
+- `transactions.for_next_month`: income that funds next month's budget
+- `category_targets`: `percent`, `percent_of` ('all' | 'gig'), `repeat_months`;
+  `target_type` also allows 'percent_income'
