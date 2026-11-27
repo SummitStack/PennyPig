@@ -183,6 +183,7 @@ export const useAccountStore = create((set, get) => ({
     if (patch.closed !== undefined) payload.closed = patch.closed
     if (patch.note !== undefined) payload.note = patch.note || null
     if (patch.balance !== undefined) payload.balance = Number(patch.balance) || 0
+    if (patch.type !== undefined) payload.account_type = patch.type
 
     if (Object.keys(payload).length === 0) {
       return { success: false, error: 'Nothing to update' }

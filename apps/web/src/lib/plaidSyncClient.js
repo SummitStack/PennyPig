@@ -21,6 +21,7 @@ export async function syncAllLinked(accounts = []) {
 
   let synced = 0
   const errors = []
+  const reconnect = []
   for (const account of targets) {
     try {
       const response = await authFetch('/api/plaid/sync', {
@@ -28,11 +29,15 @@ export async function syncAllLinked(accounts = []) {
         body: JSON.stringify({ account_id: account.id }),
       })
       const data = await response.json().catch(() => ({}))
+      if (data.reconnect) {
+        reconnect.push(account.id)
+        throw new Error('needs you to sign in again. Reconnect it on the Accounts page.')
+      }
       if (!response.ok) throw new Error(data.error || 'Sync failed')
       synced += Number(data.synced || 0)
     } catch (err) {
       errors.push(`${account.institution || account.name}: ${err.message}`)
     }
   }
-  return { banks: targets.length, synced, errors }
+  return { banks: targets.length, synced, errors, reconnect }
 }

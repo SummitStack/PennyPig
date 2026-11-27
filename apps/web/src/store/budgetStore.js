@@ -108,17 +108,26 @@ export const useBudgetStore = create((set, get) => ({
 
       // Prefetch prior month budgets for rollover math when navigating
       const prior = shiftMonth(month, -1)
-      let budgets = { ...get().budgets, [month]: amounts }
-      if (!budgets[prior]) {
+      let priorAmounts = null
+      if (!get().budgets[prior]) {
         const { data: priorRows } = await supabase
           .from('budgets')
           .select('id, amount, month_year, category_id')
           .eq('month_year', prior)
-        const priorAmounts = {}
+        priorAmounts = {}
         for (const row of priorRows || []) {
           priorAmounts[row.category_id] = Number(row.amount) || 0
         }
-        budgets = { ...budgets, [prior]: priorAmounts }
+      }
+
+      // Merge into the budgets as they are now, not as they were before the
+      // awaits: loadBudgetHistory can land in between, and copying the old
+      // object dropped earlier months, so rollover vanished from Available.
+      const latest = get().budgets
+      const budgets = {
+        ...latest,
+        [month]: amounts,
+        ...(priorAmounts && !latest[prior] ? { [prior]: priorAmounts } : {}),
       }
 
       set({

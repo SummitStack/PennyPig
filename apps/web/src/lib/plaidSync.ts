@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { plaidRequest } from './plaid'
+import { assertPlaidOk, plaidRequest } from './plaid'
 import { isParentCategory } from './categories'
 import { resolveToLeafCategoryId, suggestLeafCategoryId } from './categorySuggest'
 import { startingBalanceDate, startingBalanceEntry } from './startingBalance'
@@ -85,9 +85,7 @@ export async function syncTransactionsForAccounts(
     end_date: endDate,
   })
 
-  if (!response.ok) {
-    throw new Error(data.error_message || 'Failed to fetch transactions')
-  }
+  assertPlaidOk(response, data, 'Failed to fetch transactions')
 
   // Refresh balances
   const accountsResult = await plaidRequest('/accounts/get', {
@@ -295,6 +293,9 @@ export async function recordStartingBalances(
   for (const account of accounts || []) {
     const rows = (txns || []).filter((t: any) => t.account_id === account.id)
     if (rows.some((t: any) => t.payee === 'Starting balance')) continue
+    // An 'other' account could be cash or a debt, and guessing wrong would put
+    // a whole loan into Ready to Assign. Wait until its type is set.
+    if (account.account_type === 'other') continue
     const entry = startingBalanceEntry({
       type: account.account_type,
       balance: Number(account.balance) || 0,
