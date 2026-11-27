@@ -6,6 +6,7 @@ import {
   mapPlaidAccountType,
   plaidAccountOnBudget,
   requireAuthedClient,
+  serviceRoleClient,
 } from '../../../../lib/supabaseServer'
 
 export async function POST(request: NextRequest) {
@@ -74,27 +75,35 @@ export async function POST(request: NextRequest) {
     if (accountsError) throw new Error(accountsError.message)
 
     let syncedTransactions = 0
+    let historyReady = false
     try {
-      syncedTransactions = await syncTransactionsForAccounts(
+      const result = await syncTransactionsForAccounts(
         supabase,
         user.id,
         accessToken,
-        savedAccounts || []
+        savedAccounts || [],
+        { plaidItemId: itemRow.id, stateClient: serviceRoleClient() }
       )
+      syncedTransactions = result.synced
+      historyReady = result.historyReady
     } catch (syncErr) {
       console.error('Initial sync warning:', syncErr)
     }
 
     // Balance from before the imported window becomes a "Starting balance"
-    // entry, so existing cash reaches Ready to Assign.
-    try {
-      await recordStartingBalances(
-        supabase,
-        user.id,
-        (savedAccounts || []).map((a: { id: string }) => a.id)
-      )
-    } catch (startErr) {
-      console.error('Starting balance warning:', startErr)
+    // entry, so existing cash reaches Ready to Assign. Plaid often hasn't
+    // pulled the history yet right after linking; then the next sync (or the
+    // daily one) records it, so the history isn't counted twice.
+    if (historyReady) {
+      try {
+        await recordStartingBalances(
+          supabase,
+          user.id,
+          (savedAccounts || []).map((a: { id: string }) => a.id)
+        )
+      } catch (startErr) {
+        console.error('Starting balance warning:', startErr)
+      }
     }
 
     return NextResponse.json({

@@ -33,6 +33,7 @@ export function overspentLeaves({
   budgetsByMonth,
   splitsByTxn,
   month,
+  startMonth = null,
 }) {
   const leaves = getLeafCategories(categories, 'expense')
   const { available } = computeAvailability({
@@ -41,6 +42,7 @@ export function overspentLeaves({
     budgetsByMonth,
     splitsByTxn,
     endMonth: month,
+    startMonth,
   })
   return leaves
     .map((leaf) => ({
@@ -65,6 +67,7 @@ export function buildMonthCloseChecklist({
   budgetsByMonth,
   splitsByTxn,
   accounts,
+  startMonth = null,
 }) {
   const uncategorized = uncategorizedInMonth(transactions, month)
   const overspent = overspentLeaves({
@@ -73,6 +76,7 @@ export function buildMonthCloseChecklist({
     budgetsByMonth,
     splitsByTxn,
     month,
+    startMonth,
   })
   const uncleared = unclearedInMonth(transactions, month)
   const onBudgetAccounts = (accounts || []).filter((a) => a.onBudget !== false && !a.closed)

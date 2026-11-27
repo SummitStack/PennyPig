@@ -24,9 +24,32 @@ function mapAccount(row) {
 
 export const useAccountStore = create((set, get) => ({
   linkedAccounts: [],
+  // plaid_items rows whose last sync failed: { id, institution, needsReconnect }
+  bankIssues: [],
   loading: false,
   error: null,
   hydrated: false,
+
+  /**
+   * Banks the last sync (manual or the daily one) couldn't reach. Empty until
+   * the plaid sync-state migration is applied.
+   */
+  loadBankIssues: async () => {
+    if (!supabase) return
+    const { data, error } = await supabase
+      .from('plaid_items')
+      .select('id, institution_name, needs_reconnect, last_sync_error')
+    if (error) return
+    set({
+      bankIssues: (data || [])
+        .filter((r) => r.needs_reconnect || r.last_sync_error)
+        .map((r) => ({
+          id: r.id,
+          institution: r.institution_name || 'Your bank',
+          needsReconnect: Boolean(r.needs_reconnect),
+        })),
+    })
+  },
 
   loadAccounts: async () => {
     if (!supabase) {
@@ -47,6 +70,7 @@ export const useAccountStore = create((set, get) => ({
         loading: false,
         hydrated: true,
       })
+      get().loadBankIssues()
     } catch (err) {
       set({ error: err.message, loading: false, hydrated: true })
     }

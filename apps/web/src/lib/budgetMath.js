@@ -273,9 +273,16 @@ export function computeReadyToAssign({
   budgetsByMonth,
   splitsByTxn = {},
   month,
+  startMonth = null,
+  accounts = null,
 }) {
-  const start = earliestMonth(transactions)
+  const start = startMonth || earliestMonth(transactions)
   const leaves = expenseLeaves(categories)
+  // With a chosen start month, what the on-budget accounts held on the 1st of
+  // it is the money to assign; older months are left out entirely.
+  const opening =
+    startMonth && accounts ? openingFunds({ accounts, transactions, month: startMonth }).total : 0
+  if (month < start) return 0
   const { overspend } = computeAvailability({
     categories,
     transactions,
@@ -297,7 +304,7 @@ export function computeReadyToAssign({
     const priorOverspend =
       cur === start ? 0 : Number(overspend[shiftMonth(cur, -1)] || 0)
     // Leftover positive RTA carries; negative is clamped after overspend hit
-    rta = Math.max(0, rta) + income - priorOverspend - assigned
+    rta = Math.max(0, rta) + (cur === start ? opening : 0) + income - priorOverspend - assigned
     if (cur === month) return rta
     cur = shiftMonth(cur, 1)
     if (cur > month) return rta
@@ -338,4 +345,60 @@ export function underfundedAmount({
   // Fund until available reaches the monthly need (YNAB Underfunded-ish)
   const gap = needed - assigned
   return Math.max(0, gap)
+}
+
+/** YYYY-MM-DD for a Date (local day, as the store keeps them) or a date string. */
+function dayKey(date) {
+  if (date instanceof Date) {
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${date.getFullYear()}-${m}-${d}`
+  }
+  return String(date || '').slice(0, 10)
+}
+
+function isDebtAccount(account) {
+  return account?.type === 'credit' || account?.type === 'loan'
+}
+
+/**
+ * What each on-budget account held at the start of `month` (YYYY-MM), worked
+ * back from today's balance through the transactions dated on or after the 1st.
+ * Cash counts as positive, card and loan balances as negative.
+ * Returns { total, cash, owed, byAccount }.
+ */
+export function openingFunds({ accounts, transactions, month }) {
+  const from = `${month}-01`
+  const since = {}
+  for (const t of transactions || []) {
+    if (!t.accountId) continue
+    if (dayKey(t.date) < from) continue
+    since[t.accountId] = (since[t.accountId] || 0) + (Number(t.amount) || 0)
+  }
+  let cash = 0
+  let owed = 0
+  const byAccount = {}
+  for (const a of accounts || []) {
+    if (a.onBudget === false || a.closed) continue
+    const bal = Number(a.balance) || 0
+    const now = isDebtAccount(a) ? -Math.abs(bal) : bal
+    // Money out (positive) lowered the value since then, so add it back.
+    const value = Math.round((now + (since[a.id] || 0)) * 100) / 100
+    byAccount[a.id] = value
+    if (value >= 0) cash += value
+    else owed += -value
+  }
+  const round = (n) => Math.round(n * 100) / 100
+  return { total: round(cash - owed), cash: round(cash), owed: round(owed), byAccount }
+}
+
+/** Months a budget can start from: earliest transaction month up to `upTo`. */
+export function startMonthOptions(transactions, upTo) {
+  const out = []
+  let m = earliestMonth(transactions)
+  for (let guard = 0; guard < 240 && m <= upTo; guard += 1) {
+    out.push(m)
+    m = shiftMonth(m, 1)
+  }
+  return out.reverse()
 }

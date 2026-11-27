@@ -153,6 +153,7 @@ export default function Dashboard() {
   const user = useAuthStore((s) => s.user)
   const allAccounts = useAccountStore((state) => state.linkedAccounts)
   const accounts = useMemo(() => allAccounts.filter((a) => !a.closed), [allAccounts])
+  const bankIssues = useAccountStore((state) => state.bankIssues)
   const categories = useTransactionStore((state) => state.categories)
   const transactions = useTransactionStore((state) => state.transactions)
   const budgets = useBudgetStore((state) => state.budgets)
@@ -282,6 +283,26 @@ export default function Dashboard() {
         </div>
 
         {newUser && <Onboarding onGo={navigate} />}
+
+        {bankIssues.length > 0 && (
+          <div
+            role="status"
+            className="mb-4 flex flex-col gap-3 rounded-2xl bg-status-warning/10 px-4 py-3 ring-1 ring-status-warning/25 sm:flex-row sm:items-center sm:justify-between"
+            data-testid="bank-issue-notice"
+          >
+            <p className="flex items-start gap-2 text-body-sm text-on-surface">
+              <Icon name="link_off" className="mt-0.5 text-[18px] text-status-warning" />
+              {bankIssues.some((i) => i.needsReconnect)
+                ? `${bankIssues.find((i) => i.needsReconnect).institution} needs you to sign in again, so new transactions aren't coming in.`
+                : `${bankIssues[0].institution} didn't sync last time. It will try again tomorrow.`}
+            </p>
+            {bankIssues.some((i) => i.needsReconnect) && (
+              <button type="button" className="btn btn-primary btn-sm shrink-0" onClick={() => navigate('/accounts')}>
+                Reconnect
+              </button>
+            )}
+          </div>
+        )}
 
         <button
           type="button"

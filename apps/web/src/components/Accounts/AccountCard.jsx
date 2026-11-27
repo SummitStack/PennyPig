@@ -36,7 +36,12 @@ export default function AccountCard({ account }) {
   const [showReconcile, setShowReconcile] = useState(false)
   const [note, setNote] = useState(null)
   const [showEdit, setShowEdit] = useState(false)
-  const [needsReconnect, setNeedsReconnect] = useState(false)
+  const [reconnectAfterSync, setNeedsReconnect] = useState(null)
+  const savedReconnect = useAccountStore((state) =>
+    state.bankIssues.some((i) => i.needsReconnect && i.id === account.plaidItemId)
+  )
+  // What this session's own sync said wins over the saved state.
+  const needsReconnect = reconnectAfterSync ?? savedReconnect
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadData = useTransactionStore((state) => state.loadData)
   const loadBudgets = useBudgetStore((state) => state.loadBudgets)

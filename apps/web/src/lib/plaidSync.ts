@@ -68,58 +68,217 @@ export async function getPlaidAccessToken(
   return data as string
 }
 
-export async function syncTransactionsForAccounts(
-  supabase: SupabaseClient,
-  userId: string,
-  accessToken: string,
-  accounts: AccountRow[]
-): Promise<number> {
-  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split('T')[0]
-  const endDate = new Date().toISOString().split('T')[0]
+type SyncOptions = {
+  /** plaid_items.id; with it the sync keeps a cursor and only fetches changes. */
+  plaidItemId?: string | null
+  /** Client that can read and write plaid_items sync state (the service role when set). */
+  stateClient?: SupabaseClient | null
+}
 
+export type SyncResult = {
+  synced: number
+  removed: number
+  /** False while Plaid is still pulling the first history for a new link. */
+  historyReady: boolean
+}
+
+type TransactionChanges = {
+  added: any[]
+  modified: any[]
+  removed: string[]
+  nextCursor: string
+  historyReady: boolean
+}
+
+/**
+ * Pages through Plaid's /transactions/sync from `cursor`. Plaid asks callers
+ * to start over from the same cursor if the data changes mid-pagination.
+ */
+export async function fetchTransactionChanges(
+  accessToken: string,
+  cursor: string | null
+): Promise<TransactionChanges> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const added: any[] = []
+    const modified: any[] = []
+    const removed: string[] = []
+    let next = cursor || ''
+    let status = ''
+    let restart = false
+    for (let page = 0; page < 100; page += 1) {
+      const { response, data } = await plaidRequest('/transactions/sync', {
+        access_token: accessToken,
+        ...(next ? { cursor: next } : {}),
+        count: 500,
+      })
+      if (!response.ok && data?.error_code === 'TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION') {
+        restart = true
+        break
+      }
+      assertPlaidOk(response, data, 'Failed to fetch transactions')
+      added.push(...(data.added || []))
+      modified.push(...(data.modified || []))
+      for (const r of data.removed || []) if (r?.transaction_id) removed.push(r.transaction_id)
+      next = data.next_cursor || next
+      status = data.transactions_update_status || status
+      if (!data.has_more) break
+    }
+    if (!restart) {
+      return {
+        added,
+        modified,
+        removed,
+        nextCursor: next,
+        // Older API versions don't send a status; treat a cursor as ready.
+        historyReady: status ? status !== 'NOT_READY' : Boolean(next),
+      }
+    }
+  }
+  throw new Error('Your bank kept changing while syncing. Try again in a minute.')
+}
+
+/** The saved cursor, or undefined when the sync-state columns don't exist yet. */
+async function readCursor(
+  client: SupabaseClient,
+  plaidItemId: string,
+  userId: string
+): Promise<string | null | undefined> {
+  const { data, error } = await client
+    .from('plaid_items')
+    .select('sync_cursor')
+    .eq('id', plaidItemId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) return undefined
+  return (data as { sync_cursor?: string | null } | null)?.sync_cursor ?? null
+}
+
+/**
+ * Remembers how the last sync of a bank went, so the dashboard can say when it
+ * needs the user to sign in again. Does nothing before the migration that adds
+ * these columns is applied.
+ */
+export async function recordItemSyncState(
+  client: SupabaseClient,
+  plaidItemId: string,
+  userId: string,
+  state: { cursor?: string; error?: unknown }
+) {
+  const err = state.error
+  const patch: Record<string, unknown> = err
+    ? {
+        needs_reconnect: Boolean((err as { needsReconnect?: boolean })?.needsReconnect),
+        last_sync_error: err instanceof Error ? err.message.slice(0, 300) : 'Sync failed',
+      }
+    : { needs_reconnect: false, last_sync_error: null, last_synced_at: new Date().toISOString() }
+  if (state.cursor !== undefined) patch.sync_cursor = state.cursor
+  const { error } = await client.from('plaid_items').update(patch).eq('id', plaidItemId).eq('user_id', userId)
+  if (error) console.warn('Could not save bank sync state:', error.message)
+}
+
+/** Older full-window fetch, used until the sync-state migration is applied. */
+async function fetchLast90Days(accessToken: string): Promise<TransactionChanges> {
+  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const endDate = new Date().toISOString().split('T')[0]
   const { response, data } = await plaidRequest('/transactions/get', {
     access_token: accessToken,
     start_date: startDate,
     end_date: endDate,
   })
-
+  if (!response.ok && data?.error_code === 'PRODUCT_NOT_READY') {
+    return { added: [], modified: [], removed: [], nextCursor: '', historyReady: false }
+  }
   assertPlaidOk(response, data, 'Failed to fetch transactions')
+  return { added: data.transactions || [], modified: [], removed: [], nextCursor: '', historyReady: true }
+}
 
-  // Refresh balances
+async function refreshBalances(supabase: SupabaseClient, userId: string, accessToken: string) {
   const accountsResult = await plaidRequest('/accounts/get', {
     access_token: accessToken,
   })
-  if (accountsResult.response.ok) {
-    const { data: storedTypes } = await supabase
+  if (!accountsResult.response.ok) return
+  const { data: storedTypes } = await supabase
+    .from('accounts')
+    .select('plaid_account_id, account_type')
+    .eq('user_id', userId)
+    .not('plaid_account_id', 'is', null)
+  const typeByPlaidId = new Map(
+    (storedTypes || []).map((r: any) => [r.plaid_account_id, r.account_type])
+  )
+  for (const plaidAccount of accountsResult.data.accounts || []) {
+    // Repair loans saved as 'other' by the old type mapping, so they count
+    // as debts in net worth and stay out of the budget.
+    const mapped = mapPlaidAccountType(plaidAccount.type, plaidAccount.subtype)
+    const repair =
+      typeByPlaidId.get(plaidAccount.account_id) === 'other' && mapped === 'loan'
+        ? { account_type: mapped, on_budget: plaidAccountOnBudget(plaidAccount.type) }
+        : {}
+    await supabase
       .from('accounts')
-      .select('plaid_account_id, account_type')
+      .update({
+        balance: plaidAccount.balances?.current ?? 0,
+        last_synced: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...repair,
+      })
       .eq('user_id', userId)
-      .not('plaid_account_id', 'is', null)
-    const typeByPlaidId = new Map(
-      (storedTypes || []).map((r: any) => [r.plaid_account_id, r.account_type])
-    )
-    for (const plaidAccount of accountsResult.data.accounts || []) {
-      // Repair loans saved as 'other' by the old type mapping, so they count
-      // as debts in net worth and stay out of the budget.
-      const mapped = mapPlaidAccountType(plaidAccount.type, plaidAccount.subtype)
-      const repair =
-        typeByPlaidId.get(plaidAccount.account_id) === 'other' && mapped === 'loan'
-          ? { account_type: mapped, on_budget: plaidAccountOnBudget(plaidAccount.type) }
-          : {}
-      await supabase
-        .from('accounts')
-        .update({
-          balance: plaidAccount.balances?.current ?? 0,
-          last_synced: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          ...repair,
-        })
-        .eq('user_id', userId)
-        .eq('plaid_account_id', plaidAccount.account_id)
-    }
+      .eq('plaid_account_id', plaidAccount.account_id)
   }
+}
+
+/**
+ * Pulls what changed at the bank and saves it. With a plaid item id and the
+ * sync-state migration applied, it uses Plaid's /transactions/sync, which
+ * reports edits, removals and pending charges that posted; otherwise it falls
+ * back to re-reading the last 90 days.
+ */
+export async function syncTransactionsForAccounts(
+  supabase: SupabaseClient,
+  userId: string,
+  accessToken: string,
+  accounts: AccountRow[],
+  options: SyncOptions = {}
+): Promise<SyncResult> {
+  const stateClient = options.stateClient || supabase
+  const cursor = options.plaidItemId
+    ? await readCursor(stateClient, options.plaidItemId, userId)
+    : undefined
+  const useSync = cursor !== undefined
+
+  const changes = useSync
+    ? await fetchTransactionChanges(accessToken, cursor)
+    : await fetchLast90Days(accessToken)
+
+  await refreshBalances(supabase, userId, accessToken)
+
+  const synced = await saveTransactions(supabase, userId, accounts, [...changes.added, ...changes.modified])
+
+  let removed = 0
+  if (changes.removed.length > 0) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('user_id', userId)
+      .in('plaid_transaction_id', changes.removed)
+      .select('id')
+    if (error) throw new Error(error.message)
+    removed = (data || []).length
+  }
+
+  if (useSync && options.plaidItemId) {
+    await recordItemSyncState(stateClient, options.plaidItemId, userId, { cursor: changes.nextCursor })
+  }
+
+  return { synced, removed, historyReady: changes.historyReady }
+}
+
+async function saveTransactions(
+  supabase: SupabaseClient,
+  userId: string,
+  accounts: AccountRow[],
+  plaidTransactions: any[]
+): Promise<number> {
+  if (plaidTransactions.length === 0) return 0
 
   const accountMap = new Map(
     accounts
@@ -161,10 +320,14 @@ export async function syncTransactionsForAccounts(
     )
   )
 
-  const incoming = (data.transactions || [])
+  // A posted charge arrives with the id of the pending one it replaces.
+  const pendingIdFor = new Map<string, string>()
+
+  const incoming = plaidTransactions
     .map((txn: any) => {
       const accountId = accountMap.get(txn.account_id)
       if (!accountId) return null
+      if (txn.pending_transaction_id) pendingIdFor.set(txn.transaction_id, txn.pending_transaction_id)
 
       const pfc = txn.personal_finance_category || {}
       const merchant = txn.merchant_name || txn.name || 'Unknown'
@@ -205,18 +368,21 @@ export async function syncTransactionsForAccounts(
   if (incoming.length === 0) return 0
 
   const plaidIds = incoming.map((r) => r.plaid_transaction_id as string)
+  const lookupIds = Array.from(new Set([...plaidIds, ...Array.from(pendingIdFor.values())]))
   const { data: existingRows } = await supabase
     .from('transactions')
     .select('plaid_transaction_id, category_id, payee, merchant, memo, cleared')
     .eq('user_id', userId)
-    .in('plaid_transaction_id', plaidIds)
+    .in('plaid_transaction_id', lookupIds)
 
   const existingByPlaid = new Map(
     (existingRows || []).map((row: any) => [row.plaid_transaction_id, row])
   )
 
   const rows = incoming.map((row) => {
-    const existing = existingByPlaid.get(row.plaid_transaction_id as string)
+    const id = row.plaid_transaction_id as string
+    // Keep what the user did to the pending charge once it posts.
+    const existing = existingByPlaid.get(id) || existingByPlaid.get(pendingIdFor.get(id) || '')
     if (!existing) return row
 
     // Preserve user categorization and memo; re-apply rename rules to payee
@@ -319,4 +485,54 @@ export async function recordStartingBalances(
     if (!error) created += 1
   }
   return created
+}
+
+/**
+ * Syncs one bank connection end to end: transactions, balances, sync state and
+ * any missing starting balances. Starting balances still run when the bank
+ * needs the user to sign in again, using the balances from the last good sync,
+ * but wait while Plaid is still pulling a new link's history.
+ */
+export async function syncPlaidItem(
+  supabase: SupabaseClient,
+  userId: string,
+  plaidItemId: string,
+  stateClient: SupabaseClient | null = null
+): Promise<{ synced: number; removed: number; startingBalances: number; error: unknown }> {
+  const { data: accounts, error: accountsError } = await supabase
+    .from('accounts')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('plaid_item_id', plaidItemId)
+  if (accountsError) throw new Error(accountsError.message)
+  const accountIds = (accounts || []).map((a: { id: string }) => a.id)
+
+  let result: SyncResult | null = null
+  let syncError: unknown = null
+  try {
+    const accessToken = await getPlaidAccessToken(supabase, plaidItemId, userId)
+    result = await syncTransactionsForAccounts(supabase, userId, accessToken, accounts || [], {
+      plaidItemId,
+      stateClient,
+    })
+  } catch (err) {
+    syncError = err
+    await recordItemSyncState(stateClient || supabase, plaidItemId, userId, { error: err })
+  }
+
+  let startingBalances = 0
+  if (!result || result.historyReady) {
+    try {
+      startingBalances = await recordStartingBalances(supabase, userId, accountIds)
+    } catch (startErr) {
+      console.error('Starting balance warning:', startErr)
+    }
+  }
+
+  return {
+    synced: result?.synced || 0,
+    removed: result?.removed || 0,
+    startingBalances,
+    error: syncError,
+  }
 }
