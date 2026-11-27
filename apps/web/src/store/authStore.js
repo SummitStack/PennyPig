@@ -15,6 +15,7 @@ async function hydrateAppData() {
   await Promise.all([
     useAccountStore.getState().loadAccounts(),
     useBudgetStore.getState().loadBudgets(),
+    useBudgetStore.getState().loadBudgetStart(),
   ])
   await useBudgetStore.getState().loadBudgetHistory()
 }
@@ -58,7 +59,7 @@ export const useAuthStore = create((set) => ({
             hydrated: false,
           })
           useAccountStore.setState({ linkedAccounts: [], hydrated: false })
-          useBudgetStore.setState({ budgets: {}, budgetIds: {}, hydrated: false })
+          useBudgetStore.setState({ budgets: {}, budgetIds: {}, hydrated: false, budgetStartMonth: null })
         }
       })
     } catch (err) {

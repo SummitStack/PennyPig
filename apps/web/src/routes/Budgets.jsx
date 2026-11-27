@@ -6,6 +6,7 @@ import { useTransactionStore } from '../store/transactionStore'
 import MainLayout from '../components/Layout/MainLayout'
 import BudgetAllocationTable from '../components/Budget/BudgetAllocationTable'
 import MonthClosePanel from '../components/Budget/MonthClosePanel'
+import BudgetStartPanel from '../components/Budget/BudgetStartPanel'
 import Icon from '../components/ui/Icon'
 import { formatMonthLabel, shiftMonth, money } from '../lib/money'
 import { accountNetContribution, isLiability } from '../lib/reportMath'
@@ -133,6 +134,8 @@ export default function BudgetsPage() {
           </div>
         </div>
       </div>
+
+      <BudgetStartPanel />
 
       <div id="budget-allocation" className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
         <div className="min-w-0 xl:col-span-8">

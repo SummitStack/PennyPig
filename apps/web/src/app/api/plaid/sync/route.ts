@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  getPlaidAccessToken,
-  recordStartingBalances,
-  syncTransactionsForAccounts,
-} from '../../../../lib/plaidSync'
+import { syncPlaidItem } from '../../../../lib/plaidSync'
 import { PlaidApiError } from '../../../../lib/plaid'
-import { requireAuthedClient } from '../../../../lib/supabaseServer'
+import { requireAuthedClient, serviceRoleClient } from '../../../../lib/supabaseServer'
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +14,6 @@ export async function POST(request: NextRequest) {
     const itemId = body.item_id as string | undefined
 
     let plaidItemId: string | null = null
-    let accountsQuery = supabase.from('accounts').select('*').eq('user_id', user.id)
 
     if (accountId) {
       const { data: account, error } = await supabase
@@ -40,7 +35,6 @@ export async function POST(request: NextRequest) {
       }
 
       plaidItemId = account.plaid_item_id
-      accountsQuery = accountsQuery.eq('plaid_item_id', plaidItemId)
     } else if (itemId) {
       const { data: item, error } = await supabase
         .from('plaid_items')
@@ -54,7 +48,6 @@ export async function POST(request: NextRequest) {
       }
 
       plaidItemId = item.id
-      accountsQuery = accountsQuery.eq('plaid_item_id', item.id)
     } else {
       return NextResponse.json(
         { error: 'Provide account_id or item_id' },
@@ -62,29 +55,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: accounts, error: accountsError } = await accountsQuery
-    if (accountsError) throw new Error(accountsError.message)
-    const accountIds = (accounts || []).map((a: { id: string }) => a.id)
-
-    let synced = 0
-    let syncError: unknown = null
-    try {
-      const accessToken = await getPlaidAccessToken(supabase, plaidItemId!, user.id)
-      synced = await syncTransactionsForAccounts(supabase, user.id, accessToken, accounts || [])
-    } catch (err) {
-      syncError = err
-    }
-
-    // Accounts linked before starting balances existed get one now, so their
-    // register adds up to the bank's balance. Skips accounts that have one.
-    // This uses the balances saved at the last good sync, so it runs even when
-    // the bank needs the user to sign in again: their money shouldn't wait.
-    let startingBalances = 0
-    try {
-      startingBalances = await recordStartingBalances(supabase, user.id, accountIds)
-    } catch (startErr) {
-      console.error('Starting balance warning:', startErr)
-    }
+    const {
+      synced,
+      removed,
+      startingBalances,
+      error: syncError,
+    } = await syncPlaidItem(supabase, user.id, plaidItemId!, serviceRoleClient())
 
     if (syncError) {
       console.error('Sync error:', syncError)
@@ -103,6 +79,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       synced,
+      removed,
       startingBalances,
     })
   } catch (err) {

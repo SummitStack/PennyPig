@@ -35,6 +35,47 @@ export const useBudgetStore = create((set, get) => ({
   loading: false,
   error: null,
   hydrated: false,
+  // YYYY-MM the budget starts from, or null to use all history.
+  budgetStartMonth: null,
+
+  /** Read the chosen start month from the user's profile preferences. */
+  loadBudgetStart: async () => {
+    if (!supabase) return
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data, error } = await supabase.from('users').select('preferences').eq('id', user.id).maybeSingle()
+    if (error) return
+    const month = data?.preferences?.budgetStartMonth
+    set({ budgetStartMonth: /^\d{4}-\d{2}$/.test(month || '') ? month : null })
+  },
+
+  /** Save the start month (null goes back to using all history). */
+  setBudgetStart: async (month) => {
+    const value = month && /^\d{4}-\d{2}$/.test(month) ? month : null
+    if (!supabase) {
+      set({ budgetStartMonth: value })
+      return { success: true }
+    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not signed in' }
+    const { data, error: readError } = await supabase
+      .from('users')
+      .select('preferences')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (readError) return { success: false, error: readError.message }
+    const preferences = { ...(data?.preferences || {}) }
+    if (value) preferences.budgetStartMonth = value
+    else delete preferences.budgetStartMonth
+    const { error } = await supabase.from('users').update({ preferences }).eq('id', user.id)
+    if (error) return { success: false, error: error.message }
+    set({ budgetStartMonth: value })
+    return { success: true }
+  },
 
   setCurrentMonth: (month) => set({ currentMonth: month }),
 
@@ -163,12 +204,14 @@ export const useBudgetStore = create((set, get) => ({
   },
 
   _context: () => {
-    const { transactions, categories, splits } = useTransactionStore.getState()
+    const { transactions, categories, splits, accounts } = useTransactionStore.getState()
     return {
       transactions,
       categories,
+      accounts,
       splitsByTxn: splitsIndex(splits),
       budgetsByMonth: get().budgets,
+      startMonth: get().budgetStartMonth,
     }
   },
 
@@ -566,9 +609,11 @@ export function useReadyToAssign() {
   const transactions = useTransactionStore((s) => s.transactions)
   const categories = useTransactionStore((s) => s.categories)
   const splits = useTransactionStore((s) => s.splits)
+  const accounts = useTransactionStore((s) => s.accounts)
+  const startMonth = useBudgetStore((s) => s.budgetStartMonth)
   return useMemo(
     () => useBudgetStore.getState().getReadyToAssign(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [budgets, currentMonth, transactions, categories, splits]
+    [budgets, currentMonth, transactions, categories, splits, accounts, startMonth]
   )
 }

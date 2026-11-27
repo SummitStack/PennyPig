@@ -39,6 +39,7 @@ export default function MonthClosePanel() {
     return map
   }, [splits])
 
+  const budgetStartMonth = useBudgetStore((s) => s.budgetStartMonth)
   const readyToAssign = getReadyToAssign()
 
   const checklist = useMemo(
@@ -51,8 +52,9 @@ export default function MonthClosePanel() {
         budgetsByMonth: budgets,
         splitsByTxn,
         accounts,
+        startMonth: budgetStartMonth,
       }),
-    [currentMonth, readyToAssign, transactions, categories, budgets, splitsByTxn, accounts, closedTick]
+    [currentMonth, readyToAssign, transactions, categories, budgets, splitsByTxn, accounts, closedTick, budgetStartMonth]
   )
 
   const doneCount = checklist.filter((c) => c.done).length
