@@ -58,3 +58,9 @@ Applied to project `fnlejvzgcrnwcsxelnqz` via Supabase MCP.
 - `anchor_day` keeps monthly and yearly items on the same day of the month (31st stays 31st after February)
 - Row-level security limits each user to their own rows
 - The app hides recurring features until this table exists, so deploying the code first is safe
+
+## 20261127_plaid_token_server_only.sql (NOT yet applied to live)
+- Revokes `get_plaid_access_token(uuid)` from `authenticated`; only `service_role` can call it
+- Signed-in browsers could previously read their own Plaid access token through that RPC
+- Server routes read the token with `SUPABASE_SERVICE_ROLE_KEY` instead
+- Order: add `SUPABASE_SERVICE_ROLE_KEY` in Vercel, redeploy, then apply this

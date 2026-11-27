@@ -4,6 +4,7 @@ import { recordStartingBalances, syncTransactionsForAccounts } from '../../../..
 import {
   ensureUserProfile,
   mapPlaidAccountType,
+  plaidAccountOnBudget,
   requireAuthedClient,
 } from '../../../../lib/supabaseServer'
 
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
       mask: account.mask || null,
       institution_name: itemRow.institution_name,
       is_manual: false,
-      on_budget: true,
+      on_budget: plaidAccountOnBudget(account.type),
       last_synced: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }))

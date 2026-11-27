@@ -179,7 +179,7 @@ ALTER TABLE public.account_reconciliations ENABLE ROW LEVEL SECURITY;
 -- RPCs (see migrations):
 --   public.handle_new_user()          -- auth.users trigger
 --   public.ensure_user_defaults()     -- client/server profile + category seed
---   public.get_plaid_access_token(uuid)
+--   public.get_plaid_access_token(uuid)  -- service_role only after 20261127_plaid_token_server_only.sql
 
 -- ============================================================
 -- Recurring transactions (see migrations/20261127_recurring_transactions.sql)

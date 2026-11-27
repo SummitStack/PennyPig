@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import AuthShell, { FormError } from '../components/Auth/AuthShell'
+import EmailLinkSignIn from '../components/Auth/EmailLinkSignIn'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -72,6 +73,9 @@ export default function LoginPage() {
           {isSubmitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
+      <div className="mt-4">
+        <EmailLinkSignIn email={email} />
+      </div>
     </AuthShell>
   )
 }
