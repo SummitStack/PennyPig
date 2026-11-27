@@ -10,19 +10,28 @@ async function ensureProfile() {
   if (error) throw error
 }
 
+// Pages render as soon as the user is known, before their data arrives.
+// dataReady stays false until every store has loaded once, so pages can show
+// a skeleton instead of a false "no transactions" or a $0 budget. A later
+// reload (a token refresh) doesn't reset it, so the page never blanks again.
 async function hydrateAppData() {
-  await useTransactionStore.getState().loadData()
-  await Promise.all([
-    useAccountStore.getState().loadAccounts(),
-    useBudgetStore.getState().loadBudgets(),
-    useBudgetStore.getState().loadBudgetStart(),
-  ])
-  await useBudgetStore.getState().loadBudgetHistory()
+  try {
+    await useTransactionStore.getState().loadData()
+    await Promise.all([
+      useAccountStore.getState().loadAccounts(),
+      useBudgetStore.getState().loadBudgets(),
+      useBudgetStore.getState().loadBudgetStart(),
+    ])
+    await useBudgetStore.getState().loadBudgetHistory()
+  } finally {
+    useAuthStore.setState({ dataReady: true })
+  }
 }
 
 export const useAuthStore = create((set) => ({
   user: null,
   loading: true,
+  dataReady: false,
   error: null,
   configured: isSupabaseConfigured,
 
@@ -51,7 +60,7 @@ export const useAuthStore = create((set) => ({
           set({ user: nextSession.user, loading: false })
           await hydrateAppData()
         } else {
-          set({ user: null, loading: false })
+          set({ user: null, loading: false, dataReady: false })
           useTransactionStore.setState({
             transactions: [],
             categories: [],
@@ -125,7 +134,7 @@ export const useAuthStore = create((set) => ({
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-      set({ user: null, loading: false })
+      set({ user: null, loading: false, dataReady: false })
       return { success: true }
     } catch (err) {
       set({ error: err.message, loading: false })

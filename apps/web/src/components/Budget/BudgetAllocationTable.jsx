@@ -248,6 +248,13 @@ function CategoryRowContent({
   ]
     .filter(Boolean)
     .join('. ')
+  // A card payment row says what the card owes, so its Available (money set
+  // aside) and the card balance aren't confused for each other.
+  const cardOwed =
+    category.isCcPayment && !isGroup && !manageMode && !isOverlay && accountBalance != null
+      ? Math.abs(accountBalance)
+      : null
+  const cardShort = cardOwed != null ? Math.max(0, Math.round((cardOwed - available) * 100) / 100) : 0
   const canDrag = manageMode && !isParent
   const canAddChild = manageMode && isGroup && !isOverlay && !isParent
 
@@ -319,6 +326,24 @@ function CategoryRowContent({
               <Icon name="flag" className="shrink-0 text-[12px] text-sage-accent" />
             )}
           </button>
+        )}
+
+        {cardOwed != null && (
+          <span
+            className={`ml-1 shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-label-sm font-medium tabular-nums ${
+              cardShort > 0
+                ? 'bg-status-warning/10 text-status-warning'
+                : 'hidden bg-surface-container text-on-surface-variant sm:inline'
+            }`}
+            title={
+              cardShort > 0
+                ? `The card balance is ${money(cardOwed)}, ${money(cardShort)} more than this category holds.`
+                : `The card balance is ${money(cardOwed)}. This category holds enough to pay it.`
+            }
+            data-testid="card-owed"
+          >
+            {cardShort > 0 ? `${money(cardShort)} short` : `Owe ${money(cardOwed)}`}
+          </span>
         )}
 
         {!isGroup && !manageMode && underfunded > 0 && (

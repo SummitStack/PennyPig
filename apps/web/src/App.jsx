@@ -14,12 +14,13 @@ import Login from './routes/Login'
 import Signup from './routes/Signup'
 import ForgotPassword from './routes/ForgotPassword'
 import ResetPassword from './routes/ResetPassword'
+import { SplashScreen } from './components/ui/Skeleton'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuthStore()
   
   if (loading) {
-    return <div className="h-screen bg-surface flex items-center justify-center text-on-surface">Loading...</div>
+    return <SplashScreen />
   }
   
   return user ? children : <Navigate to="/login" />
