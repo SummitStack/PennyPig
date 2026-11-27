@@ -75,10 +75,14 @@ export default function BudgetsPage() {
 
   return (
     <MainLayout>
-      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      {/* Month and Ready to assign stay in view while you scroll the budget. */}
+      <div
+        className="sticky top-14 z-30 -mx-4 mb-5 flex flex-col gap-3 border-b border-border-hairline bg-surface/90 px-4 py-2.5 backdrop-blur-md sm:-mx-6 sm:px-6 md:flex-row md:items-center md:justify-between lg:top-0 lg:-mx-10 lg:px-10"
+        data-testid="budget-header"
+      >
         <div>
-          <p className="eyebrow">Budget</p>
-          <div className="mt-1 flex items-center gap-1">
+          <p className="eyebrow hidden md:block">Budget</p>
+          <div className="flex items-center gap-1 md:mt-1">
             <button
               type="button"
               onClick={() => changeMonth(-1)}
@@ -102,7 +106,7 @@ export default function BudgetsPage() {
         </div>
 
         <div
-          className={`flex items-center justify-between gap-6 rounded-2xl px-5 py-3.5 ring-1 ${
+          className={`flex items-center justify-between gap-6 rounded-2xl px-4 py-2.5 ring-1 md:min-w-[20rem] ${
             negative
               ? 'bg-status-error/10 ring-status-error/25'
               : zero

@@ -337,6 +337,12 @@ export const useBudgetStore = create((set, get) => ({
     return Number(carryover[month]?.[categoryId] || 0)
   },
 
+  /** Overspending in a category that happened on a credit card this month. */
+  getCreditOverspendFor: (categoryId, month = get().currentMonth) => {
+    const { creditOverspend } = computeAvailability({ ...get()._context(), endMonth: month })
+    return Number(creditOverspend[month]?.[categoryId] || 0)
+  },
+
   getAvailableFor: (categoryId, month = get().currentMonth) => {
     const ctx = get()._context()
     const { available } = computeAvailability({
