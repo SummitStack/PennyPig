@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import AuthShell, { FormError } from '../components/Auth/AuthShell'
+import EmailLinkSignIn from '../components/Auth/EmailLinkSignIn'
 
 export default function SignupPage() {
   const navigate = useNavigate()
@@ -111,6 +112,9 @@ export default function SignupPage() {
           {isSubmitting ? 'Creating account…' : 'Create account'}
         </button>
       </form>
+      <div className="mt-4">
+        <EmailLinkSignIn email={email} createUser />
+      </div>
     </AuthShell>
   )
 }
