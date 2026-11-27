@@ -9,6 +9,7 @@ import {
   isParentCategory,
 } from '../lib/categories'
 import { normalizePayeeKey } from '../lib/payee'
+import { findCategoryRule, mapCategoryRuleRow, transactionsMatchingRule } from '../lib/rules'
 import { signedAmount, absAmount, todayLocal } from '../lib/money'
 import {
   resolveToLeafCategoryId,
@@ -39,14 +40,7 @@ function enrichSplit(split, categoriesById) {
   }
 }
 
-function mapCategoryRule(row) {
-  return {
-    id: row.id,
-    matchKey: row.match_key,
-    matchPayee: row.match_payee,
-    categoryId: row.category_id,
-  }
-}
+const mapCategoryRule = mapCategoryRuleRow
 
 function findCategory(categories, categoryId) {
   return categories.find((c) => c.id === categoryId)
@@ -137,6 +131,7 @@ function mapTransaction(row, accountsById, categoriesById, splits = []) {
     transferTransactionId: row.transfer_transaction_id || null,
     isSplit: Boolean(row.is_split) || enrichedSplits.length > 0,
     excludeFromBudget: Boolean(row.exclude_from_budget),
+    forNextMonth: Boolean(row.for_next_month),
     splits: enrichedSplits,
   }
 }
@@ -208,9 +203,7 @@ function resolvePayeeDisplay(merchant, payeeRules) {
 }
 
 function resolveCategoryFromRules(merchant, categoryRules) {
-  const key = normalizePayeeKey(merchant)
-  const rule = categoryRules.find((r) => r.matchKey === key)
-  return rule?.categoryId || null
+  return findCategoryRule(categoryRules, { payee: merchant, merchant })?.categoryId || null
 }
 
 async function syncManualAccountBalance(get, set, accountId, delta) {
@@ -788,6 +781,8 @@ export const useTransactionStore = create((set, get) => ({
     const matchPayee = String(txn.payee || txn.merchant || '').trim()
     if (!matchPayee) return
     const matchKey = normalizePayeeKey(matchPayee)
+    const existingRule = findCategoryRule(get().categoryRules, txn)
+    if (existingRule && existingRule.categoryId === categoryId) return
 
     const {
       data: { user },
@@ -816,6 +811,94 @@ export const useTransactionStore = create((set, get) => ({
       const existing = state.categoryRules.filter((r) => r.matchKey !== matchKey)
       return { categoryRules: [...existing, rule] }
     })
+  },
+
+  /**
+   * Add or edit a rule from the Rules screen. `id` edits an existing rule.
+   * Returns { success, rule }.
+   */
+  saveCategoryRule: async ({ id = null, matchPayee, matchType = 'exact', categoryId, forNextMonth = false, isGig = false }) => {
+    const text = String(matchPayee || '').trim()
+    if (!text) return { success: false, error: 'Enter the payee text to match' }
+    if (!categoryId) return { success: false, error: 'Pick a category' }
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not signed in' }
+
+    const matchKey = normalizePayeeKey(text)
+    const clash = get().categoryRules.find((r) => r.matchKey === matchKey && r.id !== id)
+    if (clash) return { success: false, error: 'A rule for that text already exists' }
+
+    const row = {
+      user_id: user.id,
+      match_key: matchKey,
+      match_payee: text,
+      category_id: categoryId,
+      match_type: matchType === 'contains' ? 'contains' : 'exact',
+      for_next_month: Boolean(forNextMonth),
+      is_gig: Boolean(isGig),
+      updated_at: new Date().toISOString(),
+    }
+    const query = id
+      ? supabase.from('payee_category_rules').update(row).eq('id', id)
+      : supabase.from('payee_category_rules').insert(row)
+    const { data, error } = await query.select('*').single()
+    if (error) return { success: false, error: error.message }
+    const rule = mapCategoryRule(data)
+    set((state) => ({
+      categoryRules: [...state.categoryRules.filter((r) => r.id !== rule.id), rule],
+    }))
+    return { success: true, rule }
+  },
+
+  deleteCategoryRule: async (ruleId) => {
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+    const { error } = await supabase.from('payee_category_rules').delete().eq('id', ruleId)
+    if (error) return { success: false, error: error.message }
+    set((state) => ({ categoryRules: state.categoryRules.filter((r) => r.id !== ruleId) }))
+    return { success: true }
+  },
+
+  /**
+   * Apply a rule to transactions already in the register. Only uncategorized
+   * ones unless `overwrite`. Splits and transfers are left alone. Returns
+   * { success, changed }.
+   */
+  applyRuleToPast: async (rule, { overwrite = false } = {}) => {
+    const matches = transactionsMatchingRule(rule, get().transactions).filter(
+      (t) => !t.isSplit && !isPureTransfer(t) && (overwrite || !t.categoryId)
+    )
+    let changed = 0
+    for (const txn of matches) {
+      if (txn.categoryId !== rule.categoryId) {
+        const res = await get().categorizeTransaction(txn.id, rule.categoryId, { skipRuleUpsert: true })
+        if (res?.success === false) return { success: false, error: res.error, changed }
+        changed += 1
+      }
+      if (rule.forNextMonth && Number(txn.amount) < 0 && !txn.forNextMonth) {
+        const res = await get().setForNextMonth(txn.id, true)
+        if (res?.success === false) return { success: false, error: res.error, changed }
+      }
+    }
+    return { success: true, changed }
+  },
+
+  /** Count income toward next month's budget instead of the month it arrived. */
+  setForNextMonth: async (transactionId, value) => {
+    if (!supabase) return { success: false, error: 'Supabase not configured' }
+    const { error } = await supabase
+      .from('transactions')
+      .update({ for_next_month: Boolean(value), updated_at: new Date().toISOString() })
+      .eq('id', transactionId)
+    if (error) return { success: false, error: error.message }
+    set((state) => ({
+      transactions: state.transactions.map((t) =>
+        t.id === transactionId ? { ...t, forNextMonth: Boolean(value) } : t
+      ),
+    }))
+    return { success: true }
   },
 
   setCategoryRule: async (payeeOrMerchant, categoryId) => {
@@ -869,7 +952,7 @@ export const useTransactionStore = create((set, get) => ({
         !t.categoryId &&
         !isPureTransfer(t) &&
         !t.isSplit &&
-        normalizePayeeKey(t.merchant || t.payee) === matchKey
+        (normalizePayeeKey(t.merchant) === matchKey || normalizePayeeKey(t.payee) === matchKey)
     )
 
     for (const txn of matching) {

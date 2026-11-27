@@ -8,6 +8,7 @@ import BudgetAllocationTable from '../components/Budget/BudgetAllocationTable'
 import MonthClosePanel from '../components/Budget/MonthClosePanel'
 import BudgetStartPanel from '../components/Budget/BudgetStartPanel'
 import CardPaymentFixPanel from '../components/Budget/CardPaymentFixPanel'
+import GigIncomePanel from '../components/Budget/GigIncomePanel'
 import Icon from '../components/ui/Icon'
 import { formatMonthLabel, shiftMonth, money } from '../lib/money'
 import { accountNetContribution, isLiability } from '../lib/reportMath'
@@ -145,6 +146,7 @@ export default function BudgetsPage() {
         </div>
 
         <div className="flex flex-col gap-4 xl:col-span-4">
+          <GigIncomePanel />
           <section className="card p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-display text-headline-sm text-on-surface">Accounts</h2>

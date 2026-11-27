@@ -6,6 +6,9 @@ export default function TargetModal({ category, target, onSave, onClear, onClose
   const [targetType, setTargetType] = useState(target?.targetType || 'monthly')
   const [amount, setAmount] = useState(target?.amount ? String(target.amount) : '')
   const [targetDate, setTargetDate] = useState(target?.targetDate || '')
+  const [repeatMonths, setRepeatMonths] = useState(target?.repeatMonths ? String(target.repeatMonths) : '')
+  const [percent, setPercent] = useState(target?.percent != null ? String(target.percent) : '25')
+  const [percentOf, setPercentOf] = useState(target?.percentOf || 'gig')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -15,8 +18,11 @@ export default function TargetModal({ category, target, onSave, onClear, onClose
     setError(null)
     const result = await onSave({
       targetType,
-      amount: parseFloat(amount) || 0,
+      amount: targetType === 'percent_income' ? 0 : parseFloat(amount) || 0,
       targetDate: targetType === 'by_date' ? targetDate : null,
+      repeatMonths: targetType === 'by_date' && repeatMonths ? parseInt(repeatMonths, 10) : null,
+      percent: targetType === 'percent_income' ? parseFloat(percent) || 0 : null,
+      percentOf: targetType === 'percent_income' ? percentOf : null,
     })
     setSaving(false)
     if (result?.success) onClose()
@@ -63,9 +69,44 @@ export default function TargetModal({ category, target, onSave, onClear, onClose
             >
               <option value="monthly">Monthly</option>
               <option value="by_date">By date</option>
+              <option value="percent_income">Percent of income</option>
             </select>
           </div>
 
+          {targetType === 'percent_income' ? (
+            <div className="flex gap-2">
+              <div className="w-24">
+                <label className="mb-1 block text-label-sm text-on-surface-variant" htmlFor="target-percent">
+                  Percent
+                </label>
+                <input
+                  id="target-percent"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={percent}
+                  onChange={(e) => setPercent(e.target.value)}
+                  className="w-full rounded-lg border border-border-hairline bg-surface px-space-sm py-1.5 text-body-sm text-on-surface"
+                  required
+                />
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 block text-label-sm text-on-surface-variant" htmlFor="target-percent-of">
+                  Of
+                </label>
+                <select
+                  id="target-percent-of"
+                  value={percentOf}
+                  onChange={(e) => setPercentOf(e.target.value)}
+                  className="w-full rounded-lg border border-border-hairline bg-surface px-space-sm py-1.5 text-body-sm text-on-surface"
+                >
+                  <option value="gig">Gig income</option>
+                  <option value="all">All income</option>
+                </select>
+              </div>
+            </div>
+          ) : (
           <div>
             <label className="mb-1 block text-label-sm text-on-surface-variant">Amount</label>
             <input
@@ -78,6 +119,13 @@ export default function TargetModal({ category, target, onSave, onClear, onClose
               required
             />
           </div>
+          )}
+
+          {targetType === 'percent_income' && (
+            <p className="text-label-sm text-on-surface-variant">
+              Good for quarterly taxes on gig pay. The target grows with what you earn each month.
+            </p>
+          )}
 
           {targetType === 'by_date' && (
             <div>
@@ -91,6 +139,21 @@ export default function TargetModal({ category, target, onSave, onClear, onClose
                 className="w-full rounded-lg border border-border-hairline bg-surface px-space-sm py-1.5 text-body-sm text-on-surface"
                 required
               />
+              <label className="mb-1 mt-2 block text-label-sm text-on-surface-variant" htmlFor="target-repeat">
+                Repeat
+              </label>
+              <select
+                id="target-repeat"
+                value={repeatMonths}
+                onChange={(e) => setRepeatMonths(e.target.value)}
+                className="w-full rounded-lg border border-border-hairline bg-surface px-space-sm py-1.5 text-body-sm text-on-surface"
+              >
+                <option value="">Once</option>
+                <option value="1">Every month</option>
+                <option value="3">Every 3 months</option>
+                <option value="6">Every 6 months</option>
+                <option value="12">Every year</option>
+              </select>
             </div>
           )}
 

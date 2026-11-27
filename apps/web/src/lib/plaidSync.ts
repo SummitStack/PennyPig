@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { findCategoryRule, mapCategoryRuleRow } from './rules'
 import { assertPlaidOk, plaidRequest } from './plaid'
 import { isParentCategory } from './categories'
 import { resolveToLeafCategoryId, suggestLeafCategoryId } from './categorySuggest'
@@ -298,7 +299,7 @@ async function saveTransactions(
         .eq('user_id', userId),
       supabase
         .from('payee_category_rules')
-        .select('match_key, category_id')
+        .select('*')
         .eq('user_id', userId),
     ])
 
@@ -311,14 +312,7 @@ async function saveTransactions(
     ])
   )
 
-  const categoryRuleByKey = new Map(
-    (categoryRules || []).map(
-      (r: { match_key: string; category_id: string }) => [
-        r.match_key,
-        r.category_id,
-      ]
-    )
-  )
+  const rules = (categoryRules || []).map(mapCategoryRuleRow)
 
   // A posted charge arrives with the id of the pending one it replaces.
   const pendingIdFor = new Map<string, string>()
@@ -336,7 +330,8 @@ async function saveTransactions(
       const pending = Boolean(txn.pending)
       // Plaid: positive = money leaving account (outflow). Keep signed.
       const signed = Number(txn.amount) || 0
-      const ruleId = categoryRuleByKey.get(matchKey)
+      const rule = findCategoryRule(rules, { payee, merchant })
+      const ruleId = rule?.categoryId
       const suggestedCategoryId = suggestLeafCategoryId({
         categories: mappedCategories,
         payee,
@@ -361,6 +356,8 @@ async function saveTransactions(
         cleared: false,
         last_sync_check: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        // Only sent when a rule asks, so syncing works before the column exists.
+        ...(rule?.forNextMonth && signed < 0 ? { for_next_month: true } : {}),
       }
     })
     .filter(Boolean) as Array<Record<string, unknown>>
@@ -384,6 +381,8 @@ async function saveTransactions(
     // Keep what the user did to the pending charge once it posts.
     const existing = existingByPlaid.get(id) || existingByPlaid.get(pendingIdFor.get(id) || '')
     if (!existing) return row
+    // Keep whatever the user chose for next-month income on a row we already have.
+    delete row.for_next_month
 
     // Preserve user categorization and memo; re-apply rename rules to payee
     const merchant = String(row.merchant)

@@ -139,7 +139,7 @@ function SortableTh({ column, sortKey, sortDir, onSort }) {
   )
 }
 
-function CategorySelect({
+export function CategorySelect({
   value,
   categories,
   onChange,

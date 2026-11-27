@@ -159,6 +159,15 @@ export function listActivityLines({
   return lines
 }
 
+/**
+ * The month income counts toward. Income marked "for next month" (say, gig pay
+ * that lands mid-month) funds the following month's budget.
+ */
+export function incomeMonthKey(txn) {
+  const key = monthKeyFromDate(txn.date)
+  return txn.forNextMonth ? shiftMonth(key, 1) : key
+}
+
 /** Cleared income (inflows) attributed to an income category in a month. */
 export function incomeActivityForCategory({
   categoryId,
@@ -175,7 +184,7 @@ export function incomeActivityForCategory({
     if (txn.excludeFromBudget) continue
     if (txn.cleared === false) continue
     if (txn.transferAccountId && !txn.categoryId) continue
-    const key = monthKeyFromDate(txn.date)
+    const key = incomeMonthKey(txn)
     if (key !== month) continue
     if (txn.categoryId !== categoryId) continue
     const amt = Number(txn.amount) || 0
@@ -381,7 +390,7 @@ export function computeAvailability({
   }
 }
 
-export function incomeForMonth(transactions, categories, month) {
+export function incomeForMonth(transactions, categories, month, { fromMonth = null } = {}) {
   const incomeIds = new Set(
     categories.filter((c) => c.type === 'income').map((c) => c.id)
   )
@@ -390,7 +399,9 @@ export function incomeForMonth(transactions, categories, month) {
     if (txn.excludeFromBudget) continue
     if (txn.cleared === false) continue
     if (txn.transferAccountId && !txn.categoryId) continue
-    const key = monthKeyFromDate(txn.date)
+    // Money that arrived before the budget start is already in the opening amount.
+    if (fromMonth && monthKeyFromDate(txn.date) < fromMonth) continue
+    const key = incomeMonthKey(txn)
     if (key !== month) continue
     if (!incomeIds.has(txn.categoryId)) continue
     const amt = Number(txn.amount) || 0
@@ -433,7 +444,7 @@ export function computeReadyToAssign({
   let rta = 0
   let cur = start
   for (let guard = 0; guard < 240; guard += 1) {
-    const income = incomeForMonth(transactions, categories, cur)
+    const income = incomeForMonth(transactions, categories, cur, { fromMonth: startMonth })
     const assigned = leaves.reduce(
       (sum, leaf) => sum + leafAssigned(budgetsByMonth, leaf.id, cur),
       0
@@ -449,16 +460,52 @@ export function computeReadyToAssign({
   return rta
 }
 
-/** Monthly target need, or by_date prorated into current month. */
-export function targetNeededForMonth(target, month) {
+function addMonthsToDate(dateStr, months) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const next = new Date(y, m - 1 + months, 1)
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+  const mm = String(next.getMonth() + 1).padStart(2, '0')
+  const dd = String(Math.min(d, lastDay)).padStart(2, '0')
+  return `${next.getFullYear()}-${mm}-${dd}`
+}
+
+/**
+ * The date a by-date target is working toward in `month`. A repeating target
+ * (every N months) starts over once its date has passed.
+ */
+export function targetDueDate(target, month) {
+  if (!target?.targetDate) return null
+  let due = String(target.targetDate).slice(0, 10)
+  const repeat = Number(target.repeatMonths) || 0
+  if (repeat > 0) {
+    for (let guard = 0; guard < 600 && due.slice(0, 7) < month; guard += 1) {
+      due = addMonthsToDate(due, repeat)
+    }
+  }
+  return due
+}
+
+/**
+ * What a target asks for in `month`:
+ * - monthly: the amount
+ * - by_date: the amount spread over the months left until the date
+ * - percent_income: a percent of the income budgeted this month, all of it or
+ *   gig pay only (`ctx.income`, `ctx.gigIncome`)
+ */
+export function targetNeededForMonth(target, month, ctx = {}) {
   if (!target) return 0
   const amount = Number(target.amount) || 0
   if (target.targetType === 'monthly') return amount
+  if (target.targetType === 'percent_income') {
+    const pct = Number(target.percent) || 0
+    const base = target.percentOf === 'gig' ? Number(ctx.gigIncome) || 0 : Number(ctx.income) || 0
+    return Math.round(((pct / 100) * base) * 100) / 100
+  }
   if (target.targetType === 'by_date' && target.targetDate) {
+    const due = targetDueDate(target, month)
     const [y, m] = month.split('-').map(Number)
     const monthStart = new Date(y, m - 1, 1)
-    const monthEnd = new Date(y, m, 0)
-    const targetDate = new Date(target.targetDate + 'T00:00:00')
+    const targetDate = new Date(due + 'T00:00:00')
     if (targetDate < monthStart) return 0
     // Months remaining inclusive of current
     const monthsLeft =
@@ -476,8 +523,10 @@ export function underfundedAmount({
   month,
   assigned,
   available,
+  income = 0,
+  gigIncome = 0,
 }) {
-  const needed = targetNeededForMonth(target, month)
+  const needed = targetNeededForMonth(target, month, { income, gigIncome })
   if (needed <= 0) return 0
   // Fund until available reaches the monthly need (YNAB Underfunded-ish)
   const gap = needed - assigned

@@ -50,6 +50,15 @@ export default function SettingsPage() {
           </p>
         </SettingsSection>
 
+        <SettingsSection icon="rule" title="Rules">
+          <p className="text-body-sm text-on-surface-variant">
+            Rules file new transactions by payee, mark gig pay, and can hold income for next month.{' '}
+            <Link to="/rules" className="font-semibold text-primary hover:underline">
+              Manage rules
+            </Link>
+          </p>
+        </SettingsSection>
+
         <SettingsSection icon="person" title="Account">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>

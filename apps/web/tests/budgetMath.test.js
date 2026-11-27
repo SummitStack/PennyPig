@@ -230,3 +230,36 @@ describe('credit cards', () => {
     expect(overspend['2026-10']).toBe(80)
   })
 })
+
+describe('income for next month', () => {
+  const cats = [
+    { id: 'inc', name: 'Gig pay', type: 'income', parentId: null },
+    { id: 'g', name: 'Living', type: 'expense', parentId: null },
+    { id: 'food', name: 'Groceries', type: 'expense', parentId: 'g' },
+  ]
+  it('moves marked income into the following month', () => {
+    const transactions = [
+      { id: 'a', accountId: 'chk', date: '2026-10-05', amount: -300, categoryId: 'inc', forNextMonth: true },
+      { id: 'b', accountId: 'chk', date: '2026-10-12', amount: -200, categoryId: 'inc' },
+    ]
+    const oct = computeReadyToAssign({ categories: cats, transactions, budgetsByMonth: {}, month: '2026-10' })
+    const nov = computeReadyToAssign({ categories: cats, transactions, budgetsByMonth: {}, month: '2026-11' })
+    expect(oct).toBe(200)
+    expect(nov).toBe(500)
+  })
+  it('does not count pre-start income twice with a start month', () => {
+    const accounts = [{ id: 'chk', type: 'checking', balance: 300, onBudget: true }]
+    const transactions = [
+      { id: 'a', accountId: 'chk', date: '2026-10-25', amount: -300, categoryId: 'inc', forNextMonth: true },
+    ]
+    const rta = computeReadyToAssign({
+      categories: cats,
+      transactions,
+      budgetsByMonth: {},
+      month: '2026-11',
+      startMonth: '2026-11',
+      accounts,
+    })
+    expect(rta).toBe(300)
+  })
+})

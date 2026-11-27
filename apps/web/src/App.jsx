@@ -9,6 +9,7 @@ import Budgets from './routes/Budgets'
 import Accounts from './routes/Accounts'
 import Settings from './routes/Settings'
 import Reports from './routes/Reports'
+import Rules from './routes/Rules'
 import Login from './routes/Login'
 import Signup from './routes/Signup'
 import ForgotPassword from './routes/ForgotPassword'
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/rules" element={<ProtectedRoute><Rules /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   )
