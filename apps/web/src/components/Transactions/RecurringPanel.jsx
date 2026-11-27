@@ -93,7 +93,9 @@ export default function RecurringPanel({ compact = false }) {
           <p className="text-label-md text-on-surface-variant">
             {due.length > 0
               ? `${due.length} due now. Enter adds it to your register.`
-              : 'Nothing due. Next two weeks below.'}
+              : upcoming.length > 0
+                ? 'Nothing due. Next two weeks below.'
+                : `Nothing due in the next two weeks. Next up: ${items[0].payee} on ${formatShortDate(items[0].nextDate)}.`}
           </p>
         </div>
       </div>

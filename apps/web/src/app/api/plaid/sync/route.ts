@@ -4,6 +4,7 @@ import {
   recordStartingBalances,
   syncTransactionsForAccounts,
 } from '../../../../lib/plaidSync'
+import { PlaidApiError } from '../../../../lib/plaid'
 import { requireAuthedClient } from '../../../../lib/supabaseServer'
 
 export async function POST(request: NextRequest) {
@@ -61,29 +62,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const accessToken = await getPlaidAccessToken(supabase, plaidItemId!, user.id)
-
     const { data: accounts, error: accountsError } = await accountsQuery
     if (accountsError) throw new Error(accountsError.message)
+    const accountIds = (accounts || []).map((a: { id: string }) => a.id)
 
-    const synced = await syncTransactionsForAccounts(
-      supabase,
-      user.id,
-      accessToken,
-      accounts || []
-    )
+    let synced = 0
+    let syncError: unknown = null
+    try {
+      const accessToken = await getPlaidAccessToken(supabase, plaidItemId!, user.id)
+      synced = await syncTransactionsForAccounts(supabase, user.id, accessToken, accounts || [])
+    } catch (err) {
+      syncError = err
+    }
 
     // Accounts linked before starting balances existed get one now, so their
     // register adds up to the bank's balance. Skips accounts that have one.
+    // This uses the balances saved at the last good sync, so it runs even when
+    // the bank needs the user to sign in again: their money shouldn't wait.
     let startingBalances = 0
     try {
-      startingBalances = await recordStartingBalances(
-        supabase,
-        user.id,
-        (accounts || []).map((a: { id: string }) => a.id)
-      )
+      startingBalances = await recordStartingBalances(supabase, user.id, accountIds)
     } catch (startErr) {
       console.error('Starting balance warning:', startErr)
+    }
+
+    if (syncError) {
+      console.error('Sync error:', syncError)
+      const plaidErr = syncError instanceof PlaidApiError ? syncError : null
+      return NextResponse.json(
+        {
+          error: syncError instanceof Error ? syncError.message : 'Sync failed',
+          code: plaidErr?.code || null,
+          reconnect: Boolean(plaidErr?.needsReconnect),
+          startingBalances,
+        },
+        { status: plaidErr?.needsReconnect ? 409 : 502 }
+      )
     }
 
     return NextResponse.json({

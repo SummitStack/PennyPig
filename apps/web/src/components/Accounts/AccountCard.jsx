@@ -8,6 +8,7 @@ import { isLiability } from '../../lib/reportMath'
 import Icon from '../ui/Icon'
 import ReconcileModal from './ReconcileModal'
 import AccountEditModal from './AccountEditModal'
+import PlaidReconnectButton from './PlaidReconnectButton'
 
 const TYPE_LABEL = { checking: 'Checking', savings: 'Savings', credit: 'Credit card', loan: 'Loan', investment: 'Investment' }
 
@@ -35,6 +36,7 @@ export default function AccountCard({ account }) {
   const [showReconcile, setShowReconcile] = useState(false)
   const [note, setNote] = useState(null)
   const [showEdit, setShowEdit] = useState(false)
+  const [needsReconnect, setNeedsReconnect] = useState(false)
   const loadAccounts = useAccountStore((state) => state.loadAccounts)
   const loadData = useTransactionStore((state) => state.loadData)
   const loadBudgets = useBudgetStore((state) => state.loadBudgets)
@@ -53,7 +55,14 @@ export default function AccountCard({ account }) {
         body: JSON.stringify({ account_id: account.id }),
       })
       const data = await response.json().catch(() => ({}))
+      // A failed sync can still add starting balances from the saved balances.
+      if (!response.ok && data.startingBalances) await Promise.all([loadData(), loadBudgets()])
+      if (data.reconnect) {
+        setNeedsReconnect(true)
+        return
+      }
       if (!response.ok) throw new Error(data.error || 'Sync failed')
+      setNeedsReconnect(false)
       await Promise.all([loadAccounts(), loadData(), loadBudgets()])
       const n = data.synced ?? 0
       const extra = data.startingBalances
@@ -129,6 +138,26 @@ export default function AccountCard({ account }) {
           </button>
         </div>
       </div>
+
+      {needsReconnect && (
+        <div
+          role="status"
+          className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-status-warning/10 px-3 py-2"
+          data-testid="reconnect-banner"
+        >
+          <p className="min-w-0 flex-1 text-label-md text-on-surface">
+            {account.institution || 'Your bank'} needs you to sign in again before it can sync.
+          </p>
+          <PlaidReconnectButton
+            accountId={account.id}
+            onReconnected={() => {
+              setNeedsReconnect(false)
+              handleSync()
+            }}
+            onError={(text) => setNote({ tone: 'error', text })}
+          />
+        </div>
+      )}
 
       {note && (
         <p

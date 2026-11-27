@@ -6,9 +6,21 @@ import { useBudgetStore } from '../../store/budgetStore'
 import { money } from '../../lib/money'
 import Icon from '../ui/Icon'
 
+const TYPE_OPTIONS = [
+  { value: 'checking', label: 'Checking' },
+  { value: 'savings', label: 'Savings' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'credit', label: 'Credit card' },
+  { value: 'loan', label: 'Loan or mortgage' },
+  { value: 'other', label: 'Other' },
+]
+
+const DEBT_TYPES = new Set(['credit', 'loan'])
+
 /**
- * Rename an account, change whether it counts in the budget, add a note,
- * close or reopen it, or delete it. Before, the only option was delete.
+ * Rename an account, set its type, change whether it counts in the budget,
+ * add a note, close or reopen it, or delete it. The type matters: a loan saved
+ * as 'other' used to count as money you have, so net worth came out positive.
  */
 export default function AccountEditModal({ account, onClose }) {
   const updateAccount = useAccountStore((s) => s.updateAccount)
@@ -19,6 +31,7 @@ export default function AccountEditModal({ account, onClose }) {
   const [name, setName] = useState(account.name)
   const [note, setNote] = useState(account.note || '')
   const [onBudget, setOnBudget] = useState(account.onBudget)
+  const [type, setType] = useState(account.type || 'other')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -43,9 +56,12 @@ export default function AccountEditModal({ account, onClose }) {
       setError('Name is required')
       return
     }
-    const ok = await run(() => updateAccount(account.id, { name, note, onBudget }))
+    const typeChanged = type !== account.type
+    const ok = await run(() =>
+      updateAccount(account.id, { name, note, onBudget, ...(typeChanged ? { type } : {}) })
+    )
     if (ok) {
-      if (onBudget !== account.onBudget) await Promise.all([loadData(), loadBudgets()])
+      if (onBudget !== account.onBudget || typeChanged) await Promise.all([loadData(), loadBudgets()])
       onClose()
     }
   }
@@ -96,6 +112,38 @@ export default function AccountEditModal({ account, onClose }) {
               placeholder="Optional"
               className="field"
             />
+          </div>
+          <div>
+            <label htmlFor="ea-type" className="field-label">
+              Type
+            </label>
+            <select
+              id="ea-type"
+              value={type}
+              onChange={(e) => {
+                const next = e.target.value
+                setType(next)
+                // A loan is tracked, not budgeted. Pick it for them; the box stays editable.
+                if (next === 'loan') setOnBudget(false)
+              }}
+              className="field"
+            >
+              {TYPE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            {type === 'other' && Math.abs(Number(account.balance) || 0) >= 1000 && (
+              <p className="mt-1 text-label-md text-status-warning" data-testid="type-hint">
+                If this is a loan or mortgage, pick that so it counts as money owed.
+              </p>
+            )}
+            {DEBT_TYPES.has(type) && !DEBT_TYPES.has(account.type) && (
+              <p className="mt-1 text-label-md text-on-surface-variant">
+                The balance will show as money owed and come off your net worth.
+              </p>
+            )}
           </div>
           <label className="flex items-start gap-2.5 rounded-lg border border-border-hairline p-3 text-body-sm text-on-surface">
             <input type="checkbox" checked={onBudget} onChange={(e) => setOnBudget(e.target.checked)} className="mt-0.5" />
